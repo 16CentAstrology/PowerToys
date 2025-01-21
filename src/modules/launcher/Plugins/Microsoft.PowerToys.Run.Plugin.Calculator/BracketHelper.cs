@@ -45,15 +45,15 @@ namespace Microsoft.PowerToys.Run.Plugin.Calculator
                         continue;
                     default:
                         {
-                            throw new ArgumentOutOfRangeException(nameof(direction), direction, "Can't process value");
+                            throw new ArgumentOutOfRangeException($"Can't process value (Parameter direction: {direction})");
                         }
                 }
             }
 
-            return !trailTest.Any();
+            return trailTest.Count == 0;
         }
 
-        private static (TrailDirection direction, TrailType type) BracketTrail(char @char)
+        private static (TrailDirection Direction, TrailType Type) BracketTrail(char @char)
         {
             switch (@char)
             {

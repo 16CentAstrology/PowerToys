@@ -197,13 +197,9 @@ std::unique_ptr<D3DCaptureState> D3DCaptureState::Create(DxgiAPI* dxgiAPI,
                                                                                             swapChain.put()));
 
     // We must create the object in a heap, since we need to pin it in memory to receive callbacks
-    auto statePtr = new D3DCaptureState{ dxgiAPI,
-                                         std::move(swapChain),
-                                         pixelFormat,
-                                         std::move(monitorInfo),
-                                         continuousCapture };
+    auto statePtr = std::unique_ptr<D3DCaptureState>(new D3DCaptureState{ dxgiAPI, std::move(swapChain), pixelFormat, std::move(monitorInfo), continuousCapture });
 
-    return std::unique_ptr<D3DCaptureState>{ statePtr };
+    return statePtr;
 }
 
 D3DCaptureState::~D3DCaptureState()
@@ -298,11 +294,12 @@ void UpdateCaptureState(const CommonState& commonState,
                                     cursorPos,
                                     perColorChannelEdgeDetection,
                                     pixelTolerance);
+    auto px2mmRatio = commonState.GetPhysicalPx2MmRatio(window);
 
 #if defined(DEBUG_EDGES)
     char buffer[256];
     sprintf_s(buffer,
-              "Cursor: [%ld,%ld] Bounds: [%ld,%ld]-[%ld,%ld] Screen size: [%zu, %zu]\n",
+              "Cursor: [%ld,%ld] Bounds: [%ld,%ld]-[%ld,%ld] Screen size: [%zu, %zu] Ratio: %g\n",
               cursorPos.x,
               cursorPos.y,
               bounds.left,
@@ -310,11 +307,12 @@ void UpdateCaptureState(const CommonState& commonState,
               bounds.right,
               bounds.bottom,
               textureView.view.width,
-              textureView.view.height);
+              textureView.view.height,
+              px2mmRatio);
     OutputDebugStringA(buffer);
 #endif
     state.Access([&](MeasureToolState& state) {
-        state.perScreen[window].measuredEdges = Measurement{ bounds };
+        state.perScreen[window].measuredEdges = Measurement{ bounds, px2mmRatio };
     });
 }
 

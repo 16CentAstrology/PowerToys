@@ -3,12 +3,15 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Globalization;
 using System.Threading;
 using System.Windows;
+using Common.UI;
 using ManagedCommon;
-using PowerOCR.Helpers;
+using Microsoft.PowerToys.Telemetry;
 using PowerOCR.Keyboard;
 using PowerOCR.Settings;
+using PowerToys.Interop;
 
 namespace PowerOCR;
 
@@ -21,18 +24,41 @@ public partial class App : Application, IDisposable
     private EventMonitor? eventMonitor;
     private Mutex? _instanceMutex;
     private int _powerToysRunnerPid;
+    private ETWTrace etwTrace = new ETWTrace();
 
     private CancellationTokenSource NativeThreadCTS { get; set; }
 
     public App()
     {
+        Logger.InitializeLogger("\\TextExtractor\\Logs");
+
+        try
+        {
+            string appLanguage = LanguageHelper.LoadLanguage();
+            if (!string.IsNullOrEmpty(appLanguage))
+            {
+                System.Threading.Thread.CurrentThread.CurrentUICulture = new CultureInfo(appLanguage);
+            }
+        }
+        catch (CultureNotFoundException ex)
+        {
+            Logger.LogError("CultureNotFoundException: " + ex.Message);
+        }
+
         NativeThreadCTS = new CancellationTokenSource();
+
+        NativeEventWaiter.WaitForEventLoop(
+            Constants.TerminatePowerOCRSharedEvent(),
+            this.Shutdown,
+            this.Dispatcher,
+            NativeThreadCTS.Token);
     }
 
     public void Dispose()
     {
         GC.SuppressFinalize(this);
         keyboardMonitor?.Dispose();
+        etwTrace?.Dispose();
     }
 
     private void Application_Startup(object sender, StartupEventArgs e)
@@ -65,10 +91,10 @@ public partial class App : Application, IDisposable
                 {
                     Logger.LogInfo("PowerToys Runner exited. Exiting TextExtractor");
                     NativeThreadCTS.Cancel();
-                    Application.Current.Dispatcher.Invoke(() => Shutdown());
+                    Current.Dispatcher.Invoke(() => Shutdown());
                 });
                 var userSettings = new UserSettings(new Helpers.ThrottledActionInvoker());
-                eventMonitor = new EventMonitor(Application.Current.Dispatcher, NativeThreadCTS.Token);
+                eventMonitor = new EventMonitor(Current.Dispatcher, NativeThreadCTS.Token);
             }
             catch (Exception ex)
             {
@@ -87,11 +113,7 @@ public partial class App : Application, IDisposable
 
     protected override void OnExit(ExitEventArgs e)
     {
-        if (_instanceMutex != null)
-        {
-            _instanceMutex.ReleaseMutex();
-        }
-
+        _instanceMutex?.ReleaseMutex();
         base.OnExit(e);
     }
 

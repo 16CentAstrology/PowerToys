@@ -5,9 +5,11 @@
 using System;
 using System.IO.Abstractions;
 using System.Threading;
+
+using HostsUILib.Settings;
+using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Utilities;
-using Settings.UI.Library.Enumerations;
 
 namespace Hosts.Settings
 {
@@ -16,19 +18,42 @@ namespace Hosts.Settings
         private const string HostsModuleName = "Hosts";
         private const int MaxNumberOfRetry = 5;
 
-        private readonly ISettingsUtils _settingsUtils;
+        private readonly SettingsUtils _settingsUtils;
         private readonly IFileSystemWatcher _watcher;
-        private readonly object _loadingSettingsLock = new object();
+        private readonly Lock _loadingSettingsLock = new Lock();
 
         public bool ShowStartupWarning { get; private set; }
 
-        public AdditionalLinesPosition AdditionalLinesPosition { get; private set; }
+        private bool _loopbackDuplicates;
+
+        public bool LoopbackDuplicates
+        {
+            get => _loopbackDuplicates;
+            set
+            {
+                if (_loopbackDuplicates != value)
+                {
+                    _loopbackDuplicates = value;
+                    LoopbackDuplicatesChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+
+        // Moved from Settings.UI.Library
+        public HostsAdditionalLinesPosition AdditionalLinesPosition { get; private set; }
+
+        // Moved from Settings.UI.Library
+        public HostsEncoding Encoding { get; set; }
+
+        public event EventHandler LoopbackDuplicatesChanged;
 
         public UserSettings()
         {
             _settingsUtils = new SettingsUtils();
             ShowStartupWarning = true;
-            AdditionalLinesPosition = AdditionalLinesPosition.Top;
+            LoopbackDuplicates = false;
+            AdditionalLinesPosition = HostsAdditionalLinesPosition.Top;
+            Encoding = HostsEncoding.Utf8;
 
             LoadSettingsFromJson();
 
@@ -50,6 +75,7 @@ namespace Hosts.Settings
 
                         if (!_settingsUtils.SettingsExists(HostsModuleName))
                         {
+                            // Logger needs to be abstracted
                             Logger.LogInfo("Hosts settings.json was missing, creating a new one");
                             var defaultSettings = new HostsSettings();
                             defaultSettings.Save(_settingsUtils);
@@ -59,7 +85,9 @@ namespace Hosts.Settings
                         if (settings != null)
                         {
                             ShowStartupWarning = settings.Properties.ShowStartupWarning;
-                            AdditionalLinesPosition = settings.Properties.AdditionalLinesPosition;
+                            AdditionalLinesPosition = (HostsAdditionalLinesPosition)settings.Properties.AdditionalLinesPosition;
+                            Encoding = (HostsEncoding)settings.Properties.Encoding;
+                            LoopbackDuplicates = settings.Properties.LoopbackDuplicates;
                         }
 
                         retry = false;

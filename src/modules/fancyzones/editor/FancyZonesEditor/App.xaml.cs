@@ -4,11 +4,12 @@
 
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.Threading;
 using System.Windows;
 using System.Windows.Input;
+
 using Common.UI;
-using FancyZonesEditor.Logs;
 using FancyZonesEditor.Utils;
 using ManagedCommon;
 
@@ -55,6 +56,22 @@ namespace FancyZonesEditor
 
         public App()
         {
+            var languageTag = LanguageHelper.LoadLanguage();
+
+            if (!string.IsNullOrEmpty(languageTag))
+            {
+                try
+                {
+                    System.Threading.Thread.CurrentThread.CurrentUICulture = new CultureInfo(languageTag);
+                }
+                catch (CultureNotFoundException ex)
+                {
+                    Logger.LogError("CultureNotFoundException: " + ex.Message);
+                }
+            }
+
+            Logger.InitializeLogger("\\FancyZones\\Editor\\Logs");
+
             // DebugModeCheck();
             NativeThreadCTS = new CancellationTokenSource();
             FancyZonesEditorIO = new FancyZonesEditorIO();
@@ -77,8 +94,6 @@ namespace FancyZonesEditor
 
             _themeManager = new ThemeManager(this);
 
-            var parseResult = FancyZonesEditorIO.ParseParams();
-
             RunnerHelper.WaitForPowerToysRunner(PowerToysPID, () =>
             {
                 Logger.LogInfo("Runner exited");
@@ -86,27 +101,8 @@ namespace FancyZonesEditor
                 Application.Current.Dispatcher.Invoke(Application.Current.Shutdown);
             });
 
-            if (!parseResult.Result)
-            {
-                Logger.LogError(ParsingErrorReportTag + ": " + parseResult.Message + "; " + ParsingErrorDataTag + ": " + parseResult.MalformedData);
-                MessageBox.Show(parseResult.Message, FancyZonesEditor.Properties.Resources.Error_Parsing_Data_Title, MessageBoxButton.OK);
-            }
+            var parseResult = FancyZonesEditorIO.ParseParams();
 
-            parseResult = FancyZonesEditorIO.ParseAppliedLayouts();
-            if (!parseResult.Result)
-            {
-                Logger.LogError(ParsingErrorReportTag + ": " + parseResult.Message + "; " + ParsingErrorDataTag + ": " + parseResult.MalformedData);
-                MessageBox.Show(parseResult.Message, FancyZonesEditor.Properties.Resources.Error_Parsing_Data_Title, MessageBoxButton.OK);
-            }
-
-            parseResult = FancyZonesEditorIO.ParseCustomLayouts();
-            if (!parseResult.Result)
-            {
-                Logger.LogError(ParsingErrorReportTag + ": " + parseResult.Message + "; " + ParsingErrorDataTag + ": " + parseResult.MalformedData);
-                MessageBox.Show(parseResult.Message, FancyZonesEditor.Properties.Resources.Error_Parsing_Data_Title, MessageBoxButton.OK);
-            }
-
-            parseResult = FancyZonesEditorIO.ParseLayoutHotkeys();
             if (!parseResult.Result)
             {
                 Logger.LogError(ParsingErrorReportTag + ": " + parseResult.Message + "; " + ParsingErrorDataTag + ": " + parseResult.MalformedData);
@@ -120,7 +116,28 @@ namespace FancyZonesEditor
                 MessageBox.Show(parseResult.Message, FancyZonesEditor.Properties.Resources.Error_Parsing_Data_Title, MessageBoxButton.OK);
             }
 
+            parseResult = FancyZonesEditorIO.ParseCustomLayouts();
+            if (!parseResult.Result)
+            {
+                Logger.LogError(ParsingErrorReportTag + ": " + parseResult.Message + "; " + ParsingErrorDataTag + ": " + parseResult.MalformedData);
+                MessageBox.Show(parseResult.Message, FancyZonesEditor.Properties.Resources.Error_Parsing_Data_Title, MessageBoxButton.OK);
+            }
+
             parseResult = FancyZonesEditorIO.ParseDefaultLayouts();
+            if (!parseResult.Result)
+            {
+                Logger.LogError(ParsingErrorReportTag + ": " + parseResult.Message + "; " + ParsingErrorDataTag + ": " + parseResult.MalformedData);
+                MessageBox.Show(parseResult.Message, FancyZonesEditor.Properties.Resources.Error_Parsing_Data_Title, MessageBoxButton.OK);
+            }
+
+            parseResult = FancyZonesEditorIO.ParseLayoutHotkeys();
+            if (!parseResult.Result)
+            {
+                Logger.LogError(ParsingErrorReportTag + ": " + parseResult.Message + "; " + ParsingErrorDataTag + ": " + parseResult.MalformedData);
+                MessageBox.Show(parseResult.Message, FancyZonesEditor.Properties.Resources.Error_Parsing_Data_Title, MessageBoxButton.OK);
+            }
+
+            parseResult = FancyZonesEditorIO.ParseAppliedLayouts();
             if (!parseResult.Result)
             {
                 Logger.LogError(ParsingErrorReportTag + ": " + parseResult.Message + "; " + ParsingErrorDataTag + ": " + parseResult.MalformedData);
@@ -144,7 +161,7 @@ namespace FancyZonesEditor
         private void App_WaitExit()
         {
             NativeEventWaiter.WaitForEventLoop(
-            interop.Constants.FZEExitEvent(),
+            PowerToys.Interop.Constants.FZEExitEvent(),
             () =>
             {
                 Logger.LogInfo("Exit event triggered");

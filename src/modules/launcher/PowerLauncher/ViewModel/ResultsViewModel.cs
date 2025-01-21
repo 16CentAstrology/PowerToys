@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
+
 using PowerLauncher.Helper;
 using Wox.Infrastructure.UserSettings;
 using Wox.Plugin;
@@ -50,7 +51,7 @@ namespace PowerLauncher.ViewModel
         {
             get
             {
-                return _settings.MaxResultsToShow * 75;
+                return (_settings.MaxResultsToShow * 56) + 16;
             }
         }
 
@@ -97,7 +98,7 @@ namespace PowerLauncher.ViewModel
             }
         }
 
-        private Visibility _visibility = Visibility.Hidden;
+        private Visibility _visibility = Visibility.Collapsed;
 
         public Visibility Visibility
         {
@@ -186,21 +187,44 @@ namespace PowerLauncher.ViewModel
 
         public void SelectNextTabItem()
         {
-            // Do nothing if there is no selected item or we've selected the next context button
-            if (!SelectedItem?.SelectNextContextButton() ?? true)
+            if (_settings.TabSelectsContextButtons)
             {
-                SelectNextResult();
+                // Do nothing if there is no selected item or we've selected the next context button
+                if (!SelectedItem?.SelectNextContextButton() ?? true)
+                {
+                    SelectNextResult();
+                }
+            }
+            else
+            {
+                // Do nothing if there is no selected item
+                if (SelectedItem != null)
+                {
+                    SelectNextResult();
+                }
             }
         }
 
         public void SelectPrevTabItem()
         {
-            // Do nothing if there is no selected item or we've selected the previous context button
-            if (!SelectedItem?.SelectPrevContextButton() ?? true)
+            if (_settings.TabSelectsContextButtons)
             {
-                // Tabbing backwards should highlight the last item of the previous row
-                SelectPrevResult();
-                SelectedItem?.SelectLastContextButton();
+                // Do nothing if there is no selected item or we've selected the previous context button
+                if (!SelectedItem?.SelectPrevContextButton() ?? true)
+                {
+                    // Tabbing backwards should highlight the last item of the previous row
+                    SelectPrevResult();
+                    SelectedItem?.SelectLastContextButton();
+                }
+            }
+            else
+            {
+                // Do nothing if there is no selected item
+                if (SelectedItem != null)
+                {
+                    // Tabbing backwards
+                    SelectPrevResult();
+                }
             }
         }
 
@@ -240,15 +264,12 @@ namespace PowerLauncher.ViewModel
         /// </summary>
         public void AddResults(List<Result> newRawResults, CancellationToken ct)
         {
-            if (newRawResults == null)
-            {
-                throw new ArgumentNullException(nameof(newRawResults));
-            }
+            ArgumentNullException.ThrowIfNull(newRawResults);
 
             List<ResultViewModel> newResults = new List<ResultViewModel>(newRawResults.Count);
             foreach (Result r in newRawResults)
             {
-                newResults.Add(new ResultViewModel(r, _mainViewModel));
+                newResults.Add(new ResultViewModel(r, _mainViewModel, _settings));
                 ct.ThrowIfCancellationRequested();
             }
 

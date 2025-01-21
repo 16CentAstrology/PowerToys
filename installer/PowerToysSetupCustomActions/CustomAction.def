@@ -1,12 +1,10 @@
 LIBRARY "PowerToysSetupCustomActions"
 
 EXPORTS
+	LaunchPowerToysCA
+	CheckGPOCA
+	CleanVideoConferenceRegistryCA
 	ApplyModulesRegistryChangeSetsCA
-	CreateScheduledTaskCA
-	CreateWinAppSDKHardlinksCA
-	DeleteWinAppSDKHardlinksCA
-	CreatePTInteropHardlinksCA
-	DeletePTInteropHardlinksCA
 	DetectPrevInstallPathCA
 	RemoveScheduledTasksCA
 	TelemetryLogInstallSuccessCA
@@ -18,10 +16,13 @@ EXPORTS
 	TelemetryLogRepairCancelCA
 	TelemetryLogRepairFailCA
 	TerminateProcessesCA
-	CertifyVirtualCameraDriverCA
-	InstallVirtualCameraDriverCA
 	InstallEmbeddedMSIXCA
+	InstallDSCModuleCA
 	UnApplyModulesRegistryChangeSetsCA
-	UninstallVirtualCameraDriverCA
 	UnRegisterContextMenuPackagesCA
 	UninstallEmbeddedMSIXCA
+	UninstallDSCModuleCA
+	UninstallServicesCA
+	UninstallCommandNotFoundModuleCA
+	UpgradeCommandNotFoundModuleCA
+	UnsetAdvancedPasteAPIKeyCA

@@ -8,6 +8,8 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 
+using FancyZonesEditorCommon.Data;
+
 namespace FancyZonesEditor.Models
 {
     // Base LayoutModel
@@ -150,7 +152,7 @@ namespace FancyZonesEditor.Models
         {
             get
             {
-                return MainWindowSettingsModel.DefaultLayouts.DefaultLayouts[(int)MonitorConfigurationType.Horizontal].Uuid == this.Uuid;
+                return MainWindowSettingsModel.DefaultLayouts.Layouts[(int)MonitorConfigurationType.Horizontal].Uuid == this.Uuid;
             }
         }
 
@@ -158,7 +160,7 @@ namespace FancyZonesEditor.Models
         {
             get
             {
-                return MainWindowSettingsModel.DefaultLayouts.DefaultLayouts[(int)MonitorConfigurationType.Horizontal].Uuid != this.Uuid;
+                return MainWindowSettingsModel.DefaultLayouts.Layouts[(int)MonitorConfigurationType.Horizontal].Uuid != this.Uuid;
             }
         }
 
@@ -166,7 +168,7 @@ namespace FancyZonesEditor.Models
         {
             get
             {
-                return MainWindowSettingsModel.DefaultLayouts.DefaultLayouts[(int)MonitorConfigurationType.Vertical].Uuid == this.Uuid;
+                return MainWindowSettingsModel.DefaultLayouts.Layouts[MonitorConfigurationType.Vertical].Uuid == this.Uuid;
             }
         }
 
@@ -174,7 +176,7 @@ namespace FancyZonesEditor.Models
         {
             get
             {
-                return MainWindowSettingsModel.DefaultLayouts.DefaultLayouts[(int)MonitorConfigurationType.Vertical].Uuid != this.Uuid;
+                return MainWindowSettingsModel.DefaultLayouts.Layouts[MonitorConfigurationType.Vertical].Uuid != this.Uuid;
             }
         }
 
@@ -195,7 +197,7 @@ namespace FancyZonesEditor.Models
             }
         }
 
-        private int _sensitivityRadius = LayoutSettings.DefaultSensitivityRadius;
+        private int _sensitivityRadius = LayoutDefaultSettings.DefaultSensitivityRadius;
 
         public int SensitivityRadiusMinimum
         {
@@ -304,13 +306,13 @@ namespace FancyZonesEditor.Models
             }
         }
 
-        private int _zoneCount = LayoutSettings.DefaultZoneCount;
+        private int _zoneCount = LayoutDefaultSettings.DefaultZoneCount;
 
         public bool IsZoneAddingAllowed
         {
             get
             {
-                return TemplateZoneCount < LayoutSettings.MaxZones;
+                return TemplateZoneCount < LayoutDefaultSettings.MaxZones;
             }
         }
 
@@ -337,6 +339,12 @@ namespace FancyZonesEditor.Models
             {
                 customModels.RemoveAt(i);
             }
+        }
+
+        public void RestoreTo(LayoutModel layout)
+        {
+            layout.SensitivityRadius = SensitivityRadius;
+            layout.TemplateZoneCount = TemplateZoneCount;
         }
 
         // Adds new custom Layout
@@ -371,6 +379,7 @@ namespace FancyZonesEditor.Models
         public void Persist()
         {
             PersistData();
+            FirePropertyChanged(nameof(PersistData));
         }
 
         public void LayoutHotkeys_PropertyChanged(object sender, PropertyChangedEventArgs e)

@@ -5,18 +5,22 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
 using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library.Enumerations;
+using Settings.UI.Library.Attributes;
 
 namespace Microsoft.PowerToys.Settings.UI.Library
 {
     public class ColorPickerProperties
     {
+        [CmdConfigureIgnore]
+        public HotkeySettings DefaultActivationShortcut => new HotkeySettings(true, false, false, true, 0x43);
+
         public ColorPickerProperties()
         {
-            ActivationShortcut = new HotkeySettings(true, false, false, true, 0x43);
+            ActivationShortcut = DefaultActivationShortcut;
             ChangeCursor = false;
-            ColorHistory = new List<string>();
             ColorHistoryLimit = 20;
             VisibleColorFormats = new Dictionary<string, KeyValuePair<bool, string>>();
             VisibleColorFormats.Add("HEX", new KeyValuePair<bool, string>(true, ColorFormatHelper.GetDefaultFormat("HEX")));
@@ -42,6 +46,7 @@ namespace Microsoft.PowerToys.Settings.UI.Library
 
         [JsonPropertyName("changecursor")]
         [JsonConverter(typeof(BoolPropertyJsonConverter))]
+        [CmdConfigureIgnoreAttribute]
         public bool ChangeCursor { get; set; }
 
         [JsonPropertyName("copiedcolorrepresentation")]
@@ -50,13 +55,17 @@ namespace Microsoft.PowerToys.Settings.UI.Library
         [JsonPropertyName("activationaction")]
         public ColorPickerActivationAction ActivationAction { get; set; }
 
+        // Property ColorHistory is not used, the color history is saved separately in the colorHistory.json file
         [JsonPropertyName("colorhistory")]
+        [CmdConfigureIgnoreAttribute]
         public List<string> ColorHistory { get; set; }
 
         [JsonPropertyName("colorhistorylimit")]
+        [CmdConfigureIgnoreAttribute]
         public int ColorHistoryLimit { get; set; }
 
         [JsonPropertyName("visiblecolorformats")]
+        [CmdConfigureIgnoreAttribute]
         public Dictionary<string, KeyValuePair<bool, string>> VisibleColorFormats { get; set; }
 
         [JsonPropertyName("showcolorname")]

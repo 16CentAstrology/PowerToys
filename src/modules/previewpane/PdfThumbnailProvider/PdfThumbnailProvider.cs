@@ -1,14 +1,8 @@
 ﻿// Copyright (c) Microsoft Corporation
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
-using System;
-using System.Drawing;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
-using Common.ComInterlop;
-using Common.Utilities;
 using Windows.Data.Pdf;
+using Windows.Storage;
 using Windows.Storage.Streams;
 
 namespace Microsoft.PowerToys.ThumbnailHandler.Pdf
@@ -16,65 +10,72 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Pdf
     /// <summary>
     /// PDF Thumbnail Provider.
     /// </summary>
-    [Guid("BCC13D15-9720-4CC4-8371-EA74A274741E")]
-    [ClassInterface(ClassInterfaceType.None)]
-    [ComVisible(true)]
-    public class PdfThumbnailProvider : IInitializeWithStream, IThumbnailProvider
+    public class PdfThumbnailProvider
     {
+        public PdfThumbnailProvider(string filePath)
+        {
+            FilePath = filePath;
+        }
+
         /// <summary>
-        /// Gets the stream object to access file.
+        /// Gets the file path to the file creating thumbnail for.
         /// </summary>
-        public IStream Stream { get; private set; }
+        public string FilePath { get; private set; }
 
         /// <summary>
         ///  The maximum dimension (width or height) thumbnail we will generate.
         /// </summary>
         private const uint MaxThumbnailSize = 10000;
 
-        /// <inheritdoc/>
-        public void Initialize(IStream pstream, uint grfMode)
+        /// <summary>
+        /// Generate thumbnail bitmap for provided Pdf file/stream.
+        /// </summary>
+        /// <param name="cx">Maximum thumbnail size, in pixels.</param>
+        /// <returns>Generated bitmap</returns>
+        public Bitmap GetThumbnail(uint cx)
         {
-            // Ignore the grfMode always use read mode to access the file.
-            this.Stream = pstream;
+            return DoGetThumbnail(cx).Result;
         }
 
-        /// <inheritdoc/>
-        public void GetThumbnail(uint cx, out IntPtr phbmp, out WTS_ALPHATYPE pdwAlpha)
+        /// <summary>
+        /// Generate thumbnail bitmap for provided Pdf file/stream.
+        /// </summary>
+        /// <param name="cx">Maximum thumbnail size, in pixels.</param>
+        /// <returns>Generated bitmap</returns>
+        private async Task<Bitmap> DoGetThumbnail(uint cx)
         {
-            phbmp = IntPtr.Zero;
-            pdwAlpha = WTS_ALPHATYPE.WTSAT_UNKNOWN;
-
             if (cx == 0 || cx > MaxThumbnailSize)
             {
-                return;
+                return null;
             }
 
             if (global::PowerToys.GPOWrapper.GPOWrapper.GetConfiguredPdfThumbnailsEnabledValue() == global::PowerToys.GPOWrapper.GpoRuleConfigured.Disabled)
             {
                 // GPO is disabling this utility.
-                return;
+                return null;
             }
 
-            using var dataStream = new ReadonlyStream(this.Stream as IStream);
-            using var memStream = new MemoryStream();
-
-            dataStream.CopyTo(memStream);
-            memStream.Position = 0;
-
-            // AsRandomAccessStream() extension method from System.Runtime.WindowsRuntime
-            var pdf = PdfDocument.LoadFromStreamAsync(memStream.AsRandomAccessStream()).GetAwaiter().GetResult();
-
-            if (pdf.PageCount > 0)
+            Bitmap thumbnail = null;
+            try
             {
-                using var page = pdf.GetPage(0);
+                var file = await StorageFile.GetFileFromPathAsync(FilePath);
+                var pdf = await PdfDocument.LoadFromFileAsync(file);
 
-                var image = PageToImage(page, cx);
+                if (pdf.PageCount > 0)
+                {
+                    using var page = pdf.GetPage(0);
 
-                using Bitmap thumbnail = new Bitmap(image);
+                    var image = PageToImage(page, cx);
 
-                phbmp = thumbnail.GetHbitmap();
-                pdwAlpha = WTS_ALPHATYPE.WTSAT_RGB;
+                    thumbnail = new Bitmap(image);
+                }
             }
+            catch (Exception)
+            {
+                // TODO: add logger
+            }
+
+            return thumbnail;
         }
 
         /// <summary>

@@ -6,6 +6,7 @@
 #include <FancyZonesLib/FancyZonesData/AppliedLayouts.h>
 #include <FancyZonesLib/FancyZonesData/AppZoneHistory.h>
 #include <FancyZonesLib/FancyZonesData/DefaultLayouts.h>
+#include <FancyZonesLib/FancyZonesWindowProperties.h>
 #include <FancyZonesLib/LayoutAssignedWindows.h>
 #include "Util.h"
 
@@ -20,29 +21,29 @@ namespace FancyZonesUnitTests
 
     TEST_CLASS (WorkAreaCreationUnitTests)
     {
-        FancyZonesDataTypes::WorkAreaId m_uniqueId;
+        FancyZonesDataTypes::WorkAreaId m_workAreaId;
         FancyZonesDataTypes::WorkAreaId m_emptyUniqueId;
+        FancyZonesUtils::Rect m_workAreaRect{ RECT(0,0,1920,1080) };
 
         HINSTANCE m_hInst{};
         HMONITOR m_monitor{};
 
-        TEST_METHOD_INITIALIZE(Init)
+        TEST_METHOD_INITIALIZE(Init) noexcept
         {
-            m_uniqueId.monitorId.deviceId.id = L"DELA026";
-            m_uniqueId.monitorId.deviceId.instanceId = L"5&10a58c63&0&UID16777488";
-            m_uniqueId.monitorId.serialNumber = L"serial-number";
-            m_uniqueId.virtualDesktopId = FancyZonesUtils::GuidFromString(L"{39B25DD2-130D-4B5D-8851-4791D66B1539}").value();
+            m_workAreaId.monitorId.deviceId.id = L"DELA026";
+            m_workAreaId.monitorId.deviceId.instanceId = L"5&10a58c63&0&UID16777488";
+            m_workAreaId.monitorId.serialNumber = L"serial-number";
+            m_workAreaId.virtualDesktopId = FancyZonesUtils::GuidFromString(L"{39B25DD2-130D-4B5D-8851-4791D66B1539}").value();
 
             AppZoneHistory::instance().LoadData();
             AppliedLayouts::instance().LoadData();
             DefaultLayouts::instance().LoadData();
         }
 
-        TEST_METHOD_CLEANUP(CleanUp)
+        TEST_METHOD_CLEANUP(CleanUp) noexcept
         {
             std::filesystem::remove(AppliedLayouts::AppliedLayoutsFileName());
             std::filesystem::remove(AppZoneHistory::AppZoneHistoryFileName());
-
             std::filesystem::remove(DefaultLayouts::DefaultLayoutsFileName());
         }
 
@@ -50,13 +51,12 @@ namespace FancyZonesUnitTests
         {
             const auto defaultLayout = DefaultLayouts::instance().GetDefaultLayout();
 
-            auto workArea = MakeWorkArea({}, Mocks::Monitor(), m_uniqueId, m_emptyUniqueId);
+            auto workArea = WorkArea::Create({}, m_workAreaId, m_emptyUniqueId, m_workAreaRect);
             Assert::IsFalse(workArea == nullptr);
-            Assert::IsTrue(m_uniqueId == workArea->UniqueId());
+            Assert::IsTrue(m_workAreaId == workArea->UniqueId());
 
             const auto& layout = workArea->GetLayout();
             Assert::IsNotNull(layout.get());
-            Assert::IsNotNull(workArea->GetLayoutWindows().get());
             Assert::AreEqual(static_cast<int>(defaultLayout.type), static_cast<int>(layout->Type()));
             Assert::AreEqual(defaultLayout.zoneCount, static_cast<int>(layout->Zones().size()));
         }
@@ -65,13 +65,12 @@ namespace FancyZonesUnitTests
         {
             const auto defaultLayout = DefaultLayouts::instance().GetDefaultLayout();
 
-            auto workArea = MakeWorkArea({}, {}, m_uniqueId, m_emptyUniqueId);
+            auto workArea = WorkArea::Create({}, m_workAreaId, m_emptyUniqueId, m_workAreaRect);
             Assert::IsFalse(workArea == nullptr);
-            Assert::IsTrue(m_uniqueId == workArea->UniqueId());
+            Assert::IsTrue(m_workAreaId == workArea->UniqueId());
 
             const auto& layout = workArea->GetLayout();
             Assert::IsNotNull(layout.get());
-            Assert::IsNotNull(workArea->GetLayoutWindows().get());
             Assert::AreEqual(static_cast<int>(defaultLayout.type), static_cast<int>(layout->Type()));
             Assert::AreEqual(defaultLayout.zoneCount, static_cast<int>(layout->Zones().size()));
         }
@@ -95,15 +94,14 @@ namespace FancyZonesUnitTests
                 .sensitivityRadius = 20,
             };
 
-            auto parentWorkArea = MakeWorkArea(m_hInst, m_monitor, parentUniqueId, m_emptyUniqueId);
+            auto parentWorkArea = WorkArea::Create(m_hInst, parentUniqueId, m_emptyUniqueId, m_workAreaRect);
             AppliedLayouts::instance().ApplyLayout(parentUniqueId, layout);
 
-            auto actualWorkArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, parentUniqueId);
+            auto actualWorkArea = WorkArea::Create(m_hInst, m_workAreaId, parentUniqueId, m_workAreaRect);
             Assert::IsNotNull(actualWorkArea->GetLayout().get());
-            Assert::IsNotNull(actualWorkArea->GetLayoutWindows().get());
 
-            Assert::IsTrue(AppliedLayouts::instance().GetAppliedLayoutMap().contains(m_uniqueId));
-            const auto& actualLayout = AppliedLayouts::instance().GetAppliedLayoutMap().at(m_uniqueId);
+            Assert::IsTrue(AppliedLayouts::instance().GetAppliedLayoutMap().contains(m_workAreaId));
+            const auto& actualLayout = AppliedLayouts::instance().GetAppliedLayoutMap().at(m_workAreaId);
 
             Assert::AreEqual(static_cast<int>(layout.type), static_cast<int>(actualLayout.type));
             Assert::AreEqual(FancyZonesUtils::GuidToString(layout.uuid).value(), FancyZonesUtils::GuidToString(actualLayout.uuid).value());
@@ -131,9 +129,9 @@ namespace FancyZonesUnitTests
             DefaultLayouts::instance().LoadData();
 
             // test
-            auto workArea = MakeWorkArea({}, Mocks::Monitor(), m_uniqueId, m_emptyUniqueId);
+            auto workArea = WorkArea::Create({}, m_workAreaId, m_emptyUniqueId, m_workAreaRect);
             Assert::IsFalse(workArea == nullptr);
-            Assert::IsTrue(m_uniqueId == workArea->UniqueId());
+            Assert::IsTrue(m_workAreaId == workArea->UniqueId());
 
             Assert::IsNotNull(workArea->GetLayout().get());
 
@@ -164,9 +162,9 @@ namespace FancyZonesUnitTests
             DefaultLayouts::instance().LoadData();
 
             // test
-            auto workArea = MakeWorkArea({}, Mocks::Monitor(), m_uniqueId, m_emptyUniqueId);
+            auto workArea = WorkArea::Create({}, m_workAreaId, m_emptyUniqueId, m_workAreaRect);
             Assert::IsFalse(workArea == nullptr);
-            Assert::IsTrue(m_uniqueId == workArea->UniqueId());
+            Assert::IsTrue(m_workAreaId == workArea->UniqueId());
 
             Assert::IsNotNull(workArea->GetLayout().get());
             
@@ -177,640 +175,205 @@ namespace FancyZonesUnitTests
         }
     };
 
-    TEST_CLASS (WorkAreaUnitTests)
+    TEST_CLASS (WorkAreaSnapUnitTests)
     {
-        FancyZonesDataTypes::WorkAreaId m_uniqueId;
-        FancyZonesDataTypes::WorkAreaId m_parentUniqueId; // default empty
-
         HINSTANCE m_hInst{};
-        HMONITOR m_monitor{};
-
-        TEST_METHOD_INITIALIZE(Init)
-        {
-            m_uniqueId.monitorId.deviceId.id = L"DELA026";
-            m_uniqueId.monitorId.deviceId.instanceId = L"5&10a58c63&0&UID16777488";
-            m_uniqueId.monitorId.serialNumber = L"serial-number";
-            m_uniqueId.virtualDesktopId = FancyZonesUtils::GuidFromString(L"{39B25DD2-130D-4B5D-8851-4791D66B1539}").value();
-
-            AppZoneHistory::instance().LoadData();
-            AppliedLayouts::instance().LoadData();
-        }
-
-        TEST_METHOD_CLEANUP(CleanUp)
-        {
-            std::filesystem::remove(AppZoneHistory::AppZoneHistoryFileName());
-            std::filesystem::remove(AppliedLayouts::AppliedLayoutsFileName());
-        }
-
-    public:
-            TEST_METHOD (MoveSizeEnter)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                const auto expected = S_OK;
-                const auto actual = workArea->MoveSizeEnter(Mocks::Window());
-
-                Assert::AreEqual(expected, actual);
-            }
-
-            TEST_METHOD (MoveSizeEnterTwice)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                const auto expected = S_OK;
-
-                workArea->MoveSizeEnter(Mocks::Window());
-                const auto actual = workArea->MoveSizeEnter(Mocks::Window());
-
-                Assert::AreEqual(expected, actual);
-            }
-
-            TEST_METHOD (MoveSizeUpdate)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                const auto expected = S_OK;
-                const auto actual = workArea->MoveSizeUpdate(POINT{ 0, 0 }, true, false);
-
-                Assert::AreEqual(expected, actual);
-            }
-
-            TEST_METHOD (MoveSizeUpdatePointNegativeCoordinates)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                const auto expected = S_OK;
-                const auto actual = workArea->MoveSizeUpdate(POINT{ -10, -10 }, true, false);
-
-                Assert::AreEqual(expected, actual);
-            }
-
-            TEST_METHOD (MoveSizeUpdatePointBigCoordinates)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                const auto expected = S_OK;
-                const auto actual = workArea->MoveSizeUpdate(POINT{ LONG_MAX, LONG_MAX }, true, false);
-
-                Assert::AreEqual(expected, actual);
-            }
-
-            TEST_METHOD (MoveSizeEnd)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                const auto window = Mocks::Window();
-                workArea->MoveSizeEnter(window);
-                workArea->MoveSizeUpdate({ 20, 20 }, true, true);
-
-                const auto expected = S_OK;
-                const auto actual = workArea->MoveSizeEnd(window);
-                Assert::AreEqual(expected, actual);
-
-                const auto& layoutWindows = workArea->GetLayoutWindows();
-                const auto actualZoneIndexSet = layoutWindows->GetZoneIndexSetFromWindow(window);
-                Assert::IsFalse(std::vector<ZoneIndex>{} == actualZoneIndexSet);
-            }
-
-            TEST_METHOD (MoveSizeEndDifferentWindows)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                const auto window = Mocks::Window();
-                workArea->MoveSizeEnter(window);
-
-                const auto expected = E_INVALIDARG;
-                const auto actual = workArea->MoveSizeEnd(Mocks::Window());
-
-                Assert::AreEqual(expected, actual);
-            }
-
-            TEST_METHOD (MoveSizeEndWindowNotSet)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                const auto expected = E_INVALIDARG;
-                const auto actual = workArea->MoveSizeEnd(Mocks::Window());
-
-                Assert::AreEqual(expected, actual);
-            }
-
-            TEST_METHOD (SaveWindowProcessToZoneIndexNullptrWindow)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                workArea->SaveWindowProcessToZoneIndex(nullptr);
-
-                const auto actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-                Assert::IsTrue(actualAppZoneHistory.empty());
-            }
-
-            TEST_METHOD (SaveWindowProcessToZoneIndexNoWindowAdded)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-
-                auto window = Mocks::WindowCreate(m_hInst);
-                workArea->GetLayout()->Init(RECT{ 0, 0, 1920, 1080 }, Mocks::Monitor());
-
-                workArea->SaveWindowProcessToZoneIndex(window);
-
-                const auto actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-                Assert::IsTrue(actualAppZoneHistory.empty());
-            }
-
-            TEST_METHOD (SaveWindowProcessToZoneIndexNoWindowAddedWithFilledAppZoneHistory)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-                
-                const auto window = Mocks::WindowCreate(m_hInst);
-                const auto processPath = get_process_path(window);
-                const auto deviceId = workArea->UniqueId();
-                const auto& layoutId = workArea->GetLayout()->Id();
-
-                // fill app zone history map
-                Assert::IsTrue(AppZoneHistory::instance().SetAppLastZones(window, deviceId, Helpers::GuidToString(layoutId), { 0 }));
-                Assert::AreEqual((size_t)1, AppZoneHistory::instance().GetFullAppZoneHistory().size());
-                const auto& appHistoryArray1 = AppZoneHistory::instance().GetFullAppZoneHistory().at(processPath);
-                Assert::AreEqual((size_t)1, appHistoryArray1.size());
-                Assert::IsTrue(std::vector<ZoneIndex>{ 0 } == appHistoryArray1[0].zoneIndexSet);
-
-                // add zone without window
-                workArea->GetLayout()->Init(RECT{ 0, 0, 1920, 1080 }, Mocks::Monitor());
-
-                workArea->SaveWindowProcessToZoneIndex(window);
-                Assert::AreEqual((size_t)1, AppZoneHistory::instance().GetFullAppZoneHistory().size());
-                const auto& appHistoryArray2 = AppZoneHistory::instance().GetFullAppZoneHistory().at(processPath);
-                Assert::AreEqual((size_t)1, appHistoryArray2.size());
-                Assert::IsTrue(std::vector<ZoneIndex>{ 0 } == appHistoryArray2[0].zoneIndexSet);
-            }
-
-            TEST_METHOD (SaveWindowProcessToZoneIndexWindowAdded)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-                
-                auto window = Mocks::WindowCreate(m_hInst);
-                const auto processPath = get_process_path(window);
-                const auto deviceId = workArea->UniqueId();
-                const auto& layoutId = workArea->GetLayout()->Id();
-
-                workArea->MoveWindowIntoZoneByIndex(window, 0);
-
-                //fill app zone history map
-                Assert::IsTrue(AppZoneHistory::instance().SetAppLastZones(window, deviceId, Helpers::GuidToString(layoutId), { 2 }));
-                Assert::AreEqual((size_t)1, AppZoneHistory::instance().GetFullAppZoneHistory().size());
-                const auto& appHistoryArray = AppZoneHistory::instance().GetFullAppZoneHistory().at(processPath);
-                Assert::AreEqual((size_t)1, appHistoryArray.size());
-                Assert::IsTrue(std::vector<ZoneIndex>{ 2 } == appHistoryArray[0].zoneIndexSet);
-
-                workArea->SaveWindowProcessToZoneIndex(window);
-
-                const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-                Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-                const auto& expected = workArea->GetLayoutWindows()->GetZoneIndexSetFromWindow(window);
-                const auto& actual = appHistoryArray[0].zoneIndexSet;
-                Assert::IsTrue(expected == actual);
-            }
-
-            TEST_METHOD (WhenWindowIsNotResizablePlacingItIntoTheZoneShouldNotResizeIt)
-            {
-                auto workArea = MakeWorkArea(m_hInst, m_monitor, m_uniqueId, m_parentUniqueId);
-                
-                auto window = Mocks::WindowCreate(m_hInst);
-
-                int originalWidth = 450;
-                int originalHeight = 550;
-
-                SetWindowPos(window, nullptr, 150, 150, originalWidth, originalHeight, SWP_SHOWWINDOW);
-                SetWindowLong(window, GWL_STYLE, GetWindowLong(window, GWL_STYLE) & ~WS_SIZEBOX);
-
-                workArea->GetLayout()->Init(RECT{ 0, 0, 1920, 1080 }, Mocks::Monitor());
-                workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_LEFT, true);
-
-                RECT inZoneRect;
-                GetWindowRect(window, &inZoneRect);
-                Assert::AreEqual(originalWidth, (int)inZoneRect.right - (int)inZoneRect.left);
-                Assert::AreEqual(originalHeight, (int)inZoneRect.bottom - (int)inZoneRect.top);
-            }
-    };
-
-    TEST_CLASS (WorkAreaMoveWindowUnitTests)
-    {
-        const std::wstring m_virtualDesktopIdStr = L"{A998CA86-F08D-4BCA-AED8-77F5C8FC9925}";
-        const FancyZonesDataTypes::WorkAreaId m_uniqueId{
+        const HMONITOR m_monitor = Mocks::Monitor();
+        const FancyZonesUtils::Rect m_workAreaRect{ RECT(0, 0, 1920, 1080) };
+        const FancyZonesDataTypes::WorkAreaId m_parentUniqueId = {};
+        const FancyZonesDataTypes::WorkAreaId m_workAreaId = {
             .monitorId = {
-                .monitor = Mocks::Monitor(),
-                .deviceId = { 
-                    .id = L"DELA026",
+                .monitor = m_monitor,
+                .deviceId = {
+                    .id = L"device-id-1",
                     .instanceId = L"5&10a58c63&0&UID16777488",
                     .number = 1,
                 },
-                .serialNumber = L"serial-number"
-            },
-            .virtualDesktopId = FancyZonesUtils::GuidFromString(m_virtualDesktopIdStr).value()
+                .serialNumber = L"serial-number-1" },
+            .virtualDesktopId = FancyZonesUtils::GuidFromString(L"{310F2924-B587-4D87-97C2-90031BDBE3F1}").value()
         };
 
-        FancyZonesDataTypes::WorkAreaId m_parentUniqueId; // default empty
-
-        HINSTANCE m_hInst{};
-        HMONITOR m_monitor{};
-
-        void PrepareEmptyLayout()
-        {
-            json::JsonObject root{};
-            json::JsonArray layoutsArray{};
-
-            {
-                json::JsonObject layout{};
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::UuidID, json::value(L"{ACE817FD-2C51-4E13-903A-84CAB86FD17C}"));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::TypeID, json::value(FancyZonesDataTypes::TypeToString(FancyZonesDataTypes::ZoneSetLayoutType::Blank)));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::ShowSpacingID, json::value(false));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::SpacingID, json::value(0));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::ZoneCountID, json::value(0));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::SensitivityRadiusID, json::value(0));
-
-                json::JsonObject workAreaId{};
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::MonitorID, json::value(m_uniqueId.monitorId.deviceId.id));
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::MonitorInstanceID, json::value(m_uniqueId.monitorId.deviceId.instanceId));
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::MonitorSerialNumberID, json::value(m_uniqueId.monitorId.serialNumber));
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::MonitorNumberID, json::value(m_uniqueId.monitorId.deviceId.number));
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::VirtualDesktopID, json::value(m_virtualDesktopIdStr));
-                
-                json::JsonObject obj{};
-                obj.SetNamedValue(NonLocalizable::AppliedLayoutsIds::DeviceID, workAreaId);
-                obj.SetNamedValue(NonLocalizable::AppliedLayoutsIds::AppliedLayoutID, layout);
-
-                layoutsArray.Append(obj);
-            }
-
-            root.SetNamedValue(NonLocalizable::AppliedLayoutsIds::AppliedLayoutsArrayID, layoutsArray);
-            json::to_file(AppliedLayouts::AppliedLayoutsFileName(), root);
-            
-            AppliedLayouts::instance().LoadData();
-        }
-
-        void PrepareGridLayout()
-        {
-            json::JsonObject root{};
-            json::JsonArray layoutsArray{};
-
-            {
-                json::JsonObject layout{};
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::UuidID, json::value(L"{ACE817FD-2C51-4E13-903A-84CAB86FD17C}"));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::TypeID, json::value(FancyZonesDataTypes::TypeToString(FancyZonesDataTypes::ZoneSetLayoutType::Grid)));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::ShowSpacingID, json::value(false));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::SpacingID, json::value(0));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::ZoneCountID, json::value(4));
-                layout.SetNamedValue(NonLocalizable::AppliedLayoutsIds::SensitivityRadiusID, json::value(20));
-
-                json::JsonObject workAreaId{};
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::MonitorID, json::value(m_uniqueId.monitorId.deviceId.id));
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::MonitorInstanceID, json::value(m_uniqueId.monitorId.deviceId.instanceId));
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::MonitorSerialNumberID, json::value(m_uniqueId.monitorId.serialNumber));
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::MonitorNumberID, json::value(m_uniqueId.monitorId.deviceId.number));
-                workAreaId.SetNamedValue(NonLocalizable::AppliedLayoutsIds::VirtualDesktopID, json::value(m_virtualDesktopIdStr));
-
-                json::JsonObject obj{};
-                obj.SetNamedValue(NonLocalizable::AppliedLayoutsIds::DeviceID, workAreaId);
-                obj.SetNamedValue(NonLocalizable::AppliedLayoutsIds::AppliedLayoutID, layout);
-
-                layoutsArray.Append(obj);
-            }
-
-            root.SetNamedValue(NonLocalizable::AppliedLayoutsIds::AppliedLayoutsArrayID, layoutsArray);
-            json::to_file(AppliedLayouts::AppliedLayoutsFileName(), root);
-
-            AppliedLayouts::instance().LoadData();
-        }
-
-        TEST_METHOD_INITIALIZE(Init)
+        TEST_METHOD_INITIALIZE(Init) noexcept
         {
             AppZoneHistory::instance().LoadData();
-            AppliedLayouts::instance().LoadData();
         }
 
-        TEST_METHOD_CLEANUP(CleanUp)
+        TEST_METHOD_CLEANUP(CleanUp) noexcept
         {
             std::filesystem::remove(AppZoneHistory::AppZoneHistoryFileName());
-            std::filesystem::remove(AppliedLayouts::AppliedLayoutsFileName());
         }
 
-        TEST_METHOD (EmptyZonesMoveLeftByIndex)
+        TEST_METHOD (WhenWindowIsNotResizablePlacingItIntoTheZoneShouldNotResizeIt)
         {
-            // prepare
-            PrepareEmptyLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
+            LayoutData layout{
+                .uuid = FancyZonesUtils::GuidFromString(L"{61FA9FC0-26A6-4B37-A834-491C148DFC58}").value(),
+                .type = FancyZonesDataTypes::ZoneSetLayoutType::Grid,
+                .showSpacing = false,
+                .spacing = 0,
+                .zoneCount = 4,
+                .sensitivityRadius = 20,
+            };
+            AppliedLayouts::instance().ApplyLayout(m_workAreaId, layout);
+
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
             const auto window = Mocks::WindowCreate(m_hInst);
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_LEFT, true);
+            constexpr int originalWidth = 450;
+            constexpr int originalHeight = 550;
 
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)0, actualAppZoneHistory.size());
+            SetWindowPos(window, nullptr, 150, 150, originalWidth, originalHeight, SWP_SHOWWINDOW);
+            SetWindowLong(window, GWL_STYLE, GetWindowLong(window, GWL_STYLE) & ~WS_SIZEBOX);
 
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{} == layoutWindows->GetZoneIndexSetFromWindow(window));
+            Assert::IsTrue(workArea->Snap(window, { 1 }, true));
+
+            // wait for the window to be resized
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+            RECT inZoneRect;
+            GetWindowRect(window, &inZoneRect);
+
+            Assert::AreEqual(originalWidth, (int)inZoneRect.right - (int)inZoneRect.left);
+            Assert::AreEqual(originalHeight, (int)inZoneRect.bottom - (int)inZoneRect.top);
         }
 
-        TEST_METHOD (EmptyZonesRightByIndex)
+        TEST_METHOD (WhenWindowIsResizablePlacingItIntoTheZoneShouldResizeIt)
         {
-            // prepare
-            PrepareEmptyLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
-            const auto window = Mocks::WindowCreate(m_hInst);
+            LayoutData layout{
+                .uuid = FancyZonesUtils::GuidFromString(L"{61FA9FC0-26A6-4B37-A834-491C148DFC58}").value(),
+                .type = FancyZonesDataTypes::ZoneSetLayoutType::Grid,
+                .showSpacing = false,
+                .spacing = 0,
+                .zoneCount = 4,
+                .sensitivityRadius = 20,
+            };
+            AppliedLayouts::instance().ApplyLayout(m_workAreaId, layout);
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true);
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
+            const auto window = Mocks::WindowCreate(m_hInst, L"", L"", 0, WS_THICKFRAME);
 
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)0, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{} == layoutWindows->GetZoneIndexSetFromWindow(window));
-        }
-
-        TEST_METHOD (MoveLeftNonAppliedWindowByIndex)
-        {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
-            const auto window = Mocks::WindowCreate(m_hInst);
-
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_LEFT, true);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 3 } == layoutWindows->GetZoneIndexSetFromWindow(window));
-        }
-
-        TEST_METHOD (MoveRightNonAppliedWindowByIndex)
-        {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
-            const auto window = Mocks::WindowCreate(m_hInst);
-
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 0 } == layoutWindows->GetZoneIndexSetFromWindow(window));
-        }
-
-        TEST_METHOD (MoveAppliedWindowByIndex)
-        {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
-            const auto window = Mocks::WindowCreate(m_hInst);
-            const auto& layoutWindows = workArea->GetLayoutWindows();
+            SetWindowPos(window, nullptr, 150, 150, 450, 550, SWP_SHOWWINDOW);
             
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
-            Assert::IsTrue(ZoneIndexSet{ 0 } == layoutWindows->GetZoneIndexSetFromWindow(window));
+            Assert::IsTrue(workArea->Snap(window, { 1 }, true));
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true);
-            Assert::IsTrue(ZoneIndexSet{ 1 } == layoutWindows->GetZoneIndexSetFromWindow(window));
+            // wait for the window to be resized
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
+            RECT zonedWindowRect;
+            GetWindowRect(window, &zonedWindowRect);
+
+            RECT zoneRect = workArea->GetLayout()->Zones().at(1).GetZoneRect();
+
+            Assert::AreEqual(zoneRect.left, zonedWindowRect.left);
+            Assert::AreEqual(zoneRect.right, zonedWindowRect.right);
+            Assert::AreEqual(zoneRect.top, zonedWindowRect.top);
+            Assert::AreEqual(zoneRect.bottom, zonedWindowRect.bottom);
         }
 
-        TEST_METHOD (MoveAppliedWindowByIndexCycle)
+        TEST_METHOD (SnapWindowPropertyTest)
         {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
             const auto window = Mocks::WindowCreate(m_hInst);
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_LEFT, true);
+            const ZoneIndexSet expected = { 1, 2 };
+            Assert::IsTrue(workArea->Snap(window, expected));
 
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ (ZoneIndex)workArea->GetLayout()->Zones().size() - 1 } == layoutWindows->GetZoneIndexSetFromWindow(window));
+            const auto actual = FancyZonesWindowProperties::RetrieveZoneIndexProperty(window);
+            Assert::AreEqual(expected.size(), actual.size());
+            for (int i = 0; i < expected.size(); i++)
+            {
+                Assert::AreEqual(expected.at(i), actual.at(i));
+            }
         }
 
-        TEST_METHOD (MoveAppliedWindowByIndexNoCycle)
+        TEST_METHOD (SnapAppZoneHistoryTest)
         {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
             const auto window = Mocks::WindowCreate(m_hInst);
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_LEFT, false);
+            const ZoneIndexSet expected = { 1, 2 };
+            Assert::IsTrue(workArea->Snap(window, expected));
 
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
+            const auto processPath = get_process_path(window);
+            const auto history = AppZoneHistory::instance().GetZoneHistory(processPath, m_workAreaId);
 
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 0 } == layoutWindows->GetZoneIndexSetFromWindow(window));
+            Assert::IsTrue(history.has_value());
+            Assert::AreEqual(expected.size(), history->zoneIndexSet.size());
+            for (int i = 0; i < expected.size(); i++)
+            {
+                Assert::AreEqual(expected.at(i), history->zoneIndexSet.at(i));
+            }
         }
 
-        TEST_METHOD (EmptyZonesMoveByPosition)
+        TEST_METHOD (SnapLayoutAssignedWindowsTest)
         {
-            // prepare
-            PrepareEmptyLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
             const auto window = Mocks::WindowCreate(m_hInst);
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndPosition(window, VK_LEFT, true);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)0, actualAppZoneHistory.size());
+            const ZoneIndexSet expected = { 1, 2 };
+            Assert::IsTrue(workArea->Snap(window, expected));
 
             const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{} == layoutWindows->GetZoneIndexSetFromWindow(window));
+            Assert::IsTrue(expected == layoutWindows.GetZoneIndexSetFromWindow(window));
         }
 
-        TEST_METHOD (MoveLeftNonAppliedWindowByPosition)
+        TEST_METHOD(SnapEmptyZones)
         {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
             const auto window = Mocks::WindowCreate(m_hInst);
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndPosition(window, VK_LEFT, true);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 1 } == layoutWindows->GetZoneIndexSetFromWindow(window));
+            Assert::IsFalse(workArea->Snap(window, {}));
         }
 
-        TEST_METHOD (MoveRightNonAppliedWindowByPosition)
+        TEST_METHOD(SnapToIncorrectZone)
         {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
             const auto window = Mocks::WindowCreate(m_hInst);
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndPosition(window, VK_RIGHT, true);
+            const ZoneIndexSet zones = { 10 };
+            Assert::IsFalse(workArea->Snap(window, zones));
 
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
+            const auto processPath = get_process_path(window);
+            const auto history = AppZoneHistory::instance().GetZoneHistory(processPath, m_workAreaId);
 
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 0 } == layoutWindows->GetZoneIndexSetFromWindow(window));
+            Assert::IsFalse(history.has_value());
         }
 
-        TEST_METHOD (MoveAppliedWindowHorizontallyByPosition)
+        TEST_METHOD (UnsnapPropertyTest)
         {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
             const auto window = Mocks::WindowCreate(m_hInst);
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndPosition(window, VK_RIGHT, true);
+            Assert::IsTrue(workArea->Snap(window, { 1, 2 }));
+            Assert::IsTrue(workArea->Unsnap(window));
 
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 1 } == layoutWindows->GetZoneIndexSetFromWindow(window));
+            const auto actual = FancyZonesWindowProperties::RetrieveZoneIndexProperty(window);
+            Assert::IsTrue(actual.empty());
         }
 
-        TEST_METHOD (MoveAppliedWindowVerticallyByPosition)
+        TEST_METHOD (UnsnapAppZoneHistoryTest)
         {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
             const auto window = Mocks::WindowCreate(m_hInst);
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndPosition(window, VK_DOWN, true);
+            Assert::IsTrue(workArea->Snap(window, { 1, 2 }));
+            Assert::IsTrue(workArea->Unsnap(window));
 
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
+            const auto processPath = get_process_path(window);
+            const auto history = AppZoneHistory::instance().GetZoneHistory(processPath, m_workAreaId);
 
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 2 } == layoutWindows->GetZoneIndexSetFromWindow(window));
+            Assert::IsFalse(history.has_value());
         }
 
-        TEST_METHOD (MoveAppliedWindowByPositionHorizontallyCycle)
+        TEST_METHOD (UnsnapLayoutAssignedWindowsTest)
         {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
+            const auto workArea = WorkArea::Create(m_hInst, m_workAreaId, m_parentUniqueId, m_workAreaRect);
             const auto window = Mocks::WindowCreate(m_hInst);
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
 
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndPosition(window, VK_LEFT, true);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
+            Assert::IsTrue(workArea->Snap(window, { 1, 2 }));
+            Assert::IsTrue(workArea->Unsnap(window));
 
             const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 1 } == layoutWindows->GetZoneIndexSetFromWindow(window));
-        }
-
-        TEST_METHOD (MoveAppliedWindowByPositionHorizontallyNoCycle)
-        {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
-            const auto window = Mocks::WindowCreate(m_hInst);
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
-
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndPosition(window, VK_LEFT, false);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 0 } == layoutWindows->GetZoneIndexSetFromWindow(window));
-        }
-
-        TEST_METHOD (MoveAppliedWindowByPositionVerticallyCycle)
-        {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
-            const auto window = Mocks::WindowCreate(m_hInst);
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
-            Assert::IsTrue(ZoneIndexSet{ 0 } == layoutWindows->GetZoneIndexSetFromWindow(window));
-
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndPosition(window, VK_UP, true);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            Assert::IsTrue(ZoneIndexSet{ 2 } == layoutWindows->GetZoneIndexSetFromWindow(window));
-        }
-
-        TEST_METHOD (MoveAppliedWindowByPositionVerticallyNoCycle)
-        {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
-            const auto window = Mocks::WindowCreate(m_hInst);
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
-
-            // test
-            workArea->MoveWindowIntoZoneByDirectionAndPosition(window, VK_UP, false);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 0 } == layoutWindows->GetZoneIndexSetFromWindow(window));
-        }
-    
-        TEST_METHOD (ExtendZoneHorizontally)
-        {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
-            const auto window = Mocks::WindowCreate(m_hInst);
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
-
-            // test
-            workArea->ExtendWindowByDirectionAndPosition(window, VK_RIGHT);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 0, 1 } == layoutWindows->GetZoneIndexSetFromWindow(window));
-        }
-
-        TEST_METHOD (ExtendZoneVertically)
-        {
-            // prepare
-            PrepareGridLayout();
-            auto workArea = MakeWorkArea(m_hInst, m_uniqueId.monitorId.monitor, m_uniqueId, m_parentUniqueId);
-            const auto window = Mocks::WindowCreate(m_hInst);
-            workArea->MoveWindowIntoZoneByDirectionAndIndex(window, VK_RIGHT, true); // apply to 1st zone
-
-            // test
-            workArea->ExtendWindowByDirectionAndPosition(window, VK_DOWN);
-
-            const auto& actualAppZoneHistory = AppZoneHistory::instance().GetFullAppZoneHistory();
-            Assert::AreEqual((size_t)1, actualAppZoneHistory.size());
-
-            const auto& layoutWindows = workArea->GetLayoutWindows();
-            Assert::IsTrue(ZoneIndexSet{ 0, 2 } == layoutWindows->GetZoneIndexSetFromWindow(window));
+            Assert::IsTrue(layoutWindows.GetZoneIndexSetFromWindow(window).empty());
         }
     };
 }

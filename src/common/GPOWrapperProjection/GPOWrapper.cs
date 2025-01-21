@@ -27,6 +27,11 @@ namespace PowerToys.GPOWrapperProjection
             return (GpoRuleConfigured)PowerToys.GPOWrapper.GPOWrapper.GetConfiguredFancyZonesEnabledValue();
         }
 
+        public static GpoRuleConfigured GetConfiguredCmdNotFoundEnabledValue()
+        {
+            return (GpoRuleConfigured)PowerToys.GPOWrapper.GPOWrapper.GetConfiguredCmdNotFoundEnabledValue();
+        }
+
         public static GpoRuleConfigured GetConfiguredColorPickerEnabledValue()
         {
             return (GpoRuleConfigured)PowerToys.GPOWrapper.GPOWrapper.GetConfiguredColorPickerEnabledValue();
@@ -40,6 +45,26 @@ namespace PowerToys.GPOWrapperProjection
         public static GpoRuleConfigured GetConfiguredTextExtractorEnabledValue()
         {
             return (GpoRuleConfigured)PowerToys.GPOWrapper.GPOWrapper.GetConfiguredTextExtractorEnabledValue();
+        }
+
+        public static GpoRuleConfigured GetConfiguredAdvancedPasteEnabledValue()
+        {
+            return (GpoRuleConfigured)PowerToys.GPOWrapper.GPOWrapper.GetConfiguredAdvancedPasteEnabledValue();
+        }
+
+        public static GpoRuleConfigured GetConfiguredPeekEnabledValue()
+        {
+            return (GpoRuleConfigured)PowerToys.GPOWrapper.GPOWrapper.GetConfiguredPeekEnabledValue();
+        }
+
+        public static GpoRuleConfigured GetRunPluginEnabledValue(string pluginID)
+        {
+            return (GpoRuleConfigured)PowerToys.GPOWrapper.GPOWrapper.GetRunPluginEnabledValue(pluginID);
+        }
+
+        public static GpoRuleConfigured GetConfiguredWorkspacesEnabledValue()
+        {
+            return (GpoRuleConfigured)PowerToys.GPOWrapper.GPOWrapper.GetConfiguredWorkspacesEnabledValue();
         }
     }
 }

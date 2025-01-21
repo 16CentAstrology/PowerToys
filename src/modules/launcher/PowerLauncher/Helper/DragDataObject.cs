@@ -2,15 +2,16 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
+using System.Drawing;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+
+using DrawingImaging = System.Drawing.Imaging;
+using MediaImaging = System.Windows.Media.Imaging;
+
 namespace PowerLauncher.Helper
 {
-    using System;
-    using System.Drawing;
-    using System.Runtime.InteropServices;
-    using System.Runtime.InteropServices.ComTypes;
-    using DrawingImaging = System.Drawing.Imaging;
-    using MediaImaging = System.Windows.Media.Imaging;
-
     // based on: https://stackoverflow.com/questions/61041282/showing-image-thumbnail-with-mouse-cursor-while-dragging/61148788#61148788
     public static class DragDataObject
     {
@@ -25,10 +26,7 @@ namespace PowerLauncher.Helper
 
         public static void SetDragImage(this IDataObject dataObject, IntPtr hBitmap, int width, int height)
         {
-            if (dataObject == null)
-            {
-                throw new ArgumentNullException(nameof(dataObject));
-            }
+            ArgumentNullException.ThrowIfNull(dataObject);
 
             IDragSourceHelper dragDropHelper = (IDragSourceHelper)new DragDropHelper();
             ShDragImage dragImage = new ShDragImage
@@ -58,7 +56,7 @@ namespace PowerLauncher.Helper
         {
         }
 
-        // https://docs.microsoft.com/en-us/windows/win32/api/shobjidl_core/ns-shobjidl_core-shdragimage
+        // https://learn.microsoft.com/windows/win32/api/shobjidl_core/ns-shobjidl_core-shdragimage
         [StructLayout(LayoutKind.Sequential)]
         private struct ShDragImage
         {
@@ -68,7 +66,7 @@ namespace PowerLauncher.Helper
             public int CrColorKey;
         }
 
-        // https://docs.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-idragsourcehelper
+        // https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-idragsourcehelper
         [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         [Guid("DE5BF786-477A-11D2-839D-00C04FD918D0")]
         private interface IDragSourceHelper

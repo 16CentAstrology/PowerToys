@@ -1,27 +1,29 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Look at Directory.Build.props in root for common stuff as well -->
+  <Import Project="..\..\..\Common.Dotnet.CsWinRT.props" />
+  <Import Project="..\..\..\Common.SelfContained.props" />
+
   <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyTitle>PowerToys.SvgPreviewHandler</AssemblyTitle>
     <AssemblyDescription>PowerToys SvgPreviewHandler</AssemblyDescription>
     <Description>PowerToys SvgPreviewHandler</Description>
-    <OutputPath>..\..\..\..\$(Platform)\$(Configuration)\modules\FileExplorerPreview\</OutputPath>
-    <DocumentationFile>$(SolutionDir)$(Platform)\$(Configuration)\modules\FileExplorerPreview\SvgPreviewHandler.xml</DocumentationFile>
+    <OutputPath>..\..\..\..\$(Platform)\$(Configuration)</OutputPath>
+    <DocumentationFile>..\..\..\..\$(Platform)\$(Configuration)\SvgPreviewHandler.xml</DocumentationFile>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateSatelliteAssembliesForCore>true</GenerateSatelliteAssembliesForCore>
-    <RuntimeIdentifiers>win10-x64;win10-arm64</RuntimeIdentifiers>
-    <TargetFramework>net7.0-windows10.0.19041.0</TargetFramework>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
 
   <PropertyGroup>
     <ProjectGuid>{DA425894-6E13-404F-8DCB-78584EC0557A}</ProjectGuid>
     <RootNamespace>Microsoft.PowerToys.PreviewHandler.Svg</RootNamespace>
-    <EnableComHosting>true</EnableComHosting>
     <AssemblyName>PowerToys.SvgPreviewHandler</AssemblyName>
   </PropertyGroup>
-
-  <Import Project="..\..\..\Version.props" />
 
   <ItemGroup>
     <Compile Update="Properties\Resource.Designer.cs">
@@ -41,17 +43,20 @@
   <PropertyGroup>
     <!-- Disable missing comment warning. WinRT/C++ libraries added won't have comments on their reflections. -->
     <NoWarn>$(NoWarn);1591</NoWarn>
+    <OutputType>WinExe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\common\Common.UI\Common.UI.csproj" />
     <ProjectReference Include="..\..\..\common\GPOWrapper\GPOWrapper.vcxproj" />
+    <ProjectReference Include="..\..\..\common\interop\PowerToys.Interop.vcxproj" />
     <ProjectReference Include="..\..\..\common\ManagedTelemetry\Telemetry\ManagedTelemetry.csproj" />
+    <ProjectReference Include="..\..\..\settings-ui\Settings.UI.Library\Settings.UI.Library.csproj" />
     <ProjectReference Include="..\common\PreviewHandlerCommon.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.0.0" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.1343.22" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
   </ItemGroup>
 
   <ItemGroup>

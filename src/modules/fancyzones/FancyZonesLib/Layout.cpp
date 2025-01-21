@@ -69,7 +69,7 @@ namespace ZoneSelectionAlgorithms
             zoneIndex = (static_cast<ZoneIndex>(pt.x) - overlap.left) * capturedZones.size() / width;
         }
 
-        zoneIndex = std::clamp(zoneIndex, ZoneIndex(0), static_cast<ZoneIndex>(capturedZones.size()) - 1);
+        zoneIndex = std::clamp(zoneIndex, static_cast<ZoneIndex>(0), static_cast<ZoneIndex>(capturedZones.size()) - 1);
 
         return { capturedZones[zoneIndex] };
     }
@@ -108,15 +108,20 @@ Layout::Layout(const LayoutData& data) :
 
 bool Layout::Init(const FancyZonesUtils::Rect& workArea, HMONITOR monitor) noexcept
 {
-    //invalid work area
+    // invalid work area
     if (workArea.width() == 0 || workArea.height() == 0)
     {
         Logger::error(L"Layout initialization: invalid work area");
         return false;
     }
 
-    //invalid zoneCount, may cause division by zero
-    if (m_data.zoneCount <= 0 && m_data.type != FancyZonesDataTypes::ZoneSetLayoutType::Custom)
+    // invalid zoneCount, may cause division by zero
+    bool isGridType = m_data.type == FancyZonesDataTypes::ZoneSetLayoutType::Columns 
+        || m_data.type == FancyZonesDataTypes::ZoneSetLayoutType::Rows 
+        || m_data.type == FancyZonesDataTypes::ZoneSetLayoutType::Grid 
+        || m_data.type == FancyZonesDataTypes::ZoneSetLayoutType::PriorityGrid;
+
+    if (m_data.zoneCount < 0 || (m_data.zoneCount == 0 && isGridType))
     {
         Logger::error(L"Layout initialization: invalid zone count");
         return false;
@@ -126,6 +131,9 @@ bool Layout::Init(const FancyZonesUtils::Rect& workArea, HMONITOR monitor) noexc
 
     switch (m_data.type)
     {
+    case FancyZonesDataTypes::ZoneSetLayoutType::Blank:
+        m_zones = {};
+        break;
     case FancyZonesDataTypes::ZoneSetLayoutType::Focus:
         m_zones = LayoutConfigurator::Focus(workArea, m_data.zoneCount);
         break;

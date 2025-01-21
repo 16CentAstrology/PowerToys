@@ -15,7 +15,7 @@
 #include <shellapi.h>
 
 // Non-localizable
-const std::wstring fancyZonesPath = L"modules\\FancyZones\\PowerToys.FancyZones.exe";
+const std::wstring fancyZonesPath = L"PowerToys.FancyZones.exe";
 
 BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lpReserved*/)
 {
@@ -205,8 +205,9 @@ private:
 
         if (m_hProcess)
         {
-            TerminateProcess(m_hProcess, 0);
             SendFZECloseEvent();
+            WaitForSingleObject(m_hProcess, 1500);
+            TerminateProcess(m_hProcess, 0);
             m_hProcess = nullptr;
         }
     }

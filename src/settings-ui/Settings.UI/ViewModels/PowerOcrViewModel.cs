@@ -3,13 +3,19 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 using System.Timers;
 using global::PowerToys.GPOWrapper;
+using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Helpers;
 using Microsoft.PowerToys.Settings.UI.Library.Interfaces;
+using Windows.Globalization;
+using Windows.Media.Ocr;
 
 namespace Microsoft.PowerToys.Settings.UI.ViewModels
 {
@@ -23,7 +29,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         private GeneralSettings GeneralSettingsConfig { get; set; }
 
         private readonly ISettingsUtils _settingsUtils;
-        private readonly object _delayedActionLock = new object();
+        private readonly System.Threading.Lock _delayedActionLock = new System.Threading.Lock();
 
         private readonly PowerOcrSettings _powerOcrSettings;
         private Timer _delayedTimer;
@@ -31,6 +37,33 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         private GpoRuleConfigured _enabledGpoRuleConfiguration;
         private bool _enabledStateIsGPOConfigured;
         private bool _isEnabled;
+        private int _languageIndex;
+        private List<Language> possibleOcrLanguages;
+
+        public ObservableCollection<string> AvailableLanguages { get; } = new ObservableCollection<string>();
+
+        public int LanguageIndex
+        {
+            get
+            {
+                return _languageIndex;
+            }
+
+            set
+            {
+                if (value != _languageIndex)
+                {
+                    _languageIndex = value;
+                    if (_powerOcrSettings != null && _languageIndex < possibleOcrLanguages.Count && _languageIndex >= 0)
+                    {
+                        _powerOcrSettings.Properties.PreferredLanguage = possibleOcrLanguages[_languageIndex].NativeName;
+                        NotifySettingsChanged();
+                    }
+
+                    OnPropertyChanged(nameof(LanguageIndex));
+                }
+            }
+        }
 
         private Func<string, int> SendConfigMSG { get; }
 
@@ -41,28 +74,32 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             Func<string, int> ipcMSGCallBackFunc)
         {
             // To obtain the general settings configurations of PowerToys Settings.
-            if (settingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(settingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(settingsRepository);
 
             GeneralSettingsConfig = settingsRepository.SettingsConfig;
 
             // To obtain the settings configurations of Fancy zones.
-            if (settingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(settingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(settingsRepository);
 
             _settingsUtils = settingsUtils ?? throw new ArgumentNullException(nameof(settingsUtils));
 
-            if (powerOcrsettingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(powerOcrsettingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(powerOcrsettingsRepository);
 
             _powerOcrSettings = powerOcrsettingsRepository.SettingsConfig;
 
+            InitializeEnabledValue();
+
+            // set the callback functions value to handle outgoing IPC message.
+            SendConfigMSG = ipcMSGCallBackFunc;
+
+            _delayedTimer = new Timer();
+            _delayedTimer.Interval = SaveSettingsDelayInMs;
+            _delayedTimer.Elapsed += DelayedTimer_Tick;
+            _delayedTimer.AutoReset = false;
+        }
+
+        private void InitializeEnabledValue()
+        {
             _enabledGpoRuleConfiguration = GPOWrapper.GetConfiguredTextExtractorEnabledValue();
             if (_enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled)
             {
@@ -72,16 +109,8 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             }
             else
             {
-                _isEnabled = GeneralSettingsConfig.Enabled.PowerOCR;
+                _isEnabled = GeneralSettingsConfig.Enabled.PowerOcr;
             }
-
-            // set the callback functions value to hangle outgoing IPC message.
-            SendConfigMSG = ipcMSGCallBackFunc;
-
-            _delayedTimer = new Timer();
-            _delayedTimer.Interval = SaveSettingsDelayInMs;
-            _delayedTimer.Elapsed += DelayedTimer_Tick;
-            _delayedTimer.AutoReset = false;
         }
 
         public bool IsEnabled
@@ -100,13 +129,18 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                     _isEnabled = value;
                     OnPropertyChanged(nameof(IsEnabled));
 
-                    // Set the status of PowerOCR in the general settings
-                    GeneralSettingsConfig.Enabled.PowerOCR = value;
+                    // Set the status of PowerOcr in the general settings
+                    GeneralSettingsConfig.Enabled.PowerOcr = value;
                     var outgoing = new OutGoingGeneralSettings(GeneralSettingsConfig);
 
                     SendConfigMSG(outgoing.ToString());
                 }
             }
+        }
+
+        public bool IsWin11OrGreater
+        {
+            get => OSVersionHelper.IsWindows11();
         }
 
         public bool IsEnabledGpoConfigured
@@ -121,13 +155,55 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 if (_powerOcrSettings.Properties.ActivationShortcut != value)
                 {
-                    _powerOcrSettings.Properties.ActivationShortcut = value;
+                    _powerOcrSettings.Properties.ActivationShortcut = value ?? _powerOcrSettings.Properties.DefaultActivationShortcut;
                     OnPropertyChanged(nameof(ActivationShortcut));
 
                     _settingsUtils.SaveSettings(_powerOcrSettings.ToJsonString(), PowerOcrSettings.ModuleName);
                     NotifySettingsChanged();
                 }
             }
+        }
+
+        internal void UpdateLanguages()
+        {
+            int preferredLanguageIndex = -1;
+            int systemLanguageIndex = -1;
+            CultureInfo systemCulture = CultureInfo.CurrentUICulture;
+
+            // get the list of all installed OCR languages. While processing them, search for the previously preferred language and also for the current ui language
+            possibleOcrLanguages = OcrEngine.AvailableRecognizerLanguages.OrderBy(x => x.NativeName).ToList();
+            AvailableLanguages.Clear();
+            foreach (Language language in possibleOcrLanguages)
+            {
+                if (_powerOcrSettings.Properties.PreferredLanguage?.Equals(language.DisplayName, StringComparison.Ordinal) == true)
+                {
+                    preferredLanguageIndex = AvailableLanguages.Count;
+                }
+
+                if (systemCulture.DisplayName.Equals(language.DisplayName, StringComparison.Ordinal) || systemCulture.Parent.DisplayName.Equals(language.DisplayName, StringComparison.Ordinal))
+                {
+                    systemLanguageIndex = AvailableLanguages.Count;
+                }
+
+                AvailableLanguages.Add(EnsureStartUpper(language.NativeName));
+            }
+
+            // if the previously stored preferred language is not available (has been deleted or this is the first run with language preference)
+            if (preferredLanguageIndex == -1)
+            {
+                // try to use the current ui language. If it is also not available, set the first language as preferred (to have any selected language)
+                if (systemLanguageIndex >= 0)
+                {
+                    preferredLanguageIndex = systemLanguageIndex;
+                }
+                else
+                {
+                    preferredLanguageIndex = 0;
+                }
+            }
+
+            // set the language index -> the preferred language gets selected in the combo box
+            LanguageIndex = preferredLanguageIndex;
         }
 
         private void ScheduleSavingOfSettings()
@@ -163,6 +239,12 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                        JsonSerializer.Serialize(_powerOcrSettings)));
         }
 
+        public void RefreshEnabledState()
+        {
+            InitializeEnabledValue();
+            OnPropertyChanged(nameof(IsEnabled));
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -180,6 +262,24 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         {
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
+        }
+
+        public string SnippingToolInfoBarMargin
+        {
+            // Workaround for wrong StackPanel behavior: On hidden controls the margin is still reserved.
+            get => IsWin11OrGreater ? "0,0,0,25" : "0,0,0,0";
+        }
+
+        private string EnsureStartUpper(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+            {
+                return input;
+            }
+
+            var inputArray = input.ToCharArray();
+            inputArray[0] = char.ToUpper(inputArray[0], CultureInfo.CurrentCulture);
+            return new string(inputArray);
         }
     }
 }

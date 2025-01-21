@@ -8,6 +8,9 @@
 #include <common/utils/winapi_error.h>
 #include <common/utils/process_path.h>
 
+#include <common/utils/elevation.h>
+#include <Generated Files/resource.h>
+
 #include <interop/shared_constants.h>
 
 #include <trace.h>
@@ -23,14 +26,17 @@ namespace NonLocalizable
 bool isExcluded(HWND window)
 {
     auto processPath = get_process_path(window);
-    CharUpperBuffW(processPath.data(), (DWORD)processPath.length());
-    return find_app_name_in_path(processPath, AlwaysOnTopSettings::settings().excludedApps);
+    CharUpperBuffW(processPath.data(), static_cast<DWORD>(processPath.length()));
+
+    return check_excluded_app(window, processPath, AlwaysOnTopSettings::settings().excludedApps);
 }
 
-AlwaysOnTop::AlwaysOnTop(bool useLLKH) :
+AlwaysOnTop::AlwaysOnTop(bool useLLKH, DWORD mainThreadId) :
     SettingsObserver({SettingId::FrameEnabled, SettingId::Hotkey, SettingId::ExcludeApps}),
     m_hinstance(reinterpret_cast<HINSTANCE>(&__ImageBase)),
-    m_useCentralizedLLKH(useLLKH)
+    m_useCentralizedLLKH(useLLKH),
+    m_mainThreadId(mainThreadId),
+    m_notificationUtil(std::make_unique<notifications::NotificationUtil>())
 {
     s_instance = this;
     DPIAware::EnableDPIAwarenessForThisProcess();
@@ -58,6 +64,7 @@ AlwaysOnTop::AlwaysOnTop(bool useLLKH) :
 AlwaysOnTop::~AlwaysOnTop()
 {
     m_running = false;
+    m_notificationUtil.reset();
 
     if (m_hPinEvent)
     {
@@ -277,6 +284,7 @@ void AlwaysOnTop::RegisterLLKH()
     }
 	
     m_hPinEvent = CreateEventW(nullptr, false, false, CommonSharedConstants::ALWAYS_ON_TOP_PIN_EVENT);
+    m_hTerminateEvent = CreateEventW(nullptr, false, false, CommonSharedConstants::ALWAYS_ON_TOP_TERMINATE_EVENT);
 
     if (!m_hPinEvent)
     {
@@ -284,11 +292,20 @@ void AlwaysOnTop::RegisterLLKH()
         return;
     }
 
-    m_thread = std::thread([this]() {
+    if (!m_hTerminateEvent)
+    {
+        Logger::warn(L"Failed to create terminateEvent. {}", get_last_error_or_default(GetLastError()));
+        return;
+    }
+
+    HANDLE handles[2] = { m_hPinEvent,
+                          m_hTerminateEvent };
+
+    m_thread = std::thread([this, handles]() {
         MSG msg;
         while (m_running)
         {
-            DWORD dwEvt = MsgWaitForMultipleObjects(1, &m_hPinEvent, false, INFINITE, QS_ALLINPUT);
+            DWORD dwEvt = MsgWaitForMultipleObjects(2, handles, false, INFINITE, QS_ALLINPUT);
             if (!m_running)
             {
                 break;
@@ -302,6 +319,9 @@ void AlwaysOnTop::RegisterLLKH()
                 }
                 break;
             case WAIT_OBJECT_0 + 1:
+                PostThreadMessage(m_mainThreadId, WM_QUIT, 0, 0);
+                break;
+            case WAIT_OBJECT_0 + 2:
                 if (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
                 {
                     TranslateMessage(&msg);
@@ -381,7 +401,7 @@ bool AlwaysOnTop::IsPinned(HWND window) const noexcept
 
 bool AlwaysOnTop::PinTopmostWindow(HWND window) const noexcept
 {
-    if (!SetProp(window, NonLocalizable::WINDOW_IS_PINNED_PROP, (HANDLE)1))
+    if (!SetProp(window, NonLocalizable::WINDOW_IS_PINNED_PROP, reinterpret_cast<HANDLE>(1)))
     {
         Logger::error(L"SetProp failed, {}", get_last_error_or_default(GetLastError()));
     }
@@ -488,6 +508,13 @@ void AlwaysOnTop::HandleWinHookEvent(WinHookEvent* data) noexcept
     break;
     case EVENT_SYSTEM_FOREGROUND:
     {
+        if (!is_process_elevated() && IsProcessOfWindowElevated(data->hwnd))
+        {
+            m_notificationUtil->WarnIfElevationIsRequired(GET_RESOURCE_STRING(IDS_ALWAYSONTOP),
+                                                          GET_RESOURCE_STRING(IDS_SYSTEM_FOREGROUND_ELEVATED),
+                                                          GET_RESOURCE_STRING(IDS_SYSTEM_FOREGROUND_ELEVATED_LEARN_MORE),
+                                                          GET_RESOURCE_STRING(IDS_SYSTEM_FOREGROUND_ELEVATED_DIALOG_DONT_SHOW_AGAIN));
+        }
         RefreshBorders();
     }
     break;

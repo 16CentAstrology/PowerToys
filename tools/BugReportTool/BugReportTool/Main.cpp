@@ -27,15 +27,37 @@ using namespace winrt::Windows::Data::Json;
 
 map<wstring, vector<wstring>> escapeInfo = {
     { L"FancyZones\\app-zone-history.json", { L"app-zone-history/app-path" } },
-    { L"FancyZones\\settings.json", { L"properties/fancyzones_excluded_apps" } }
+    { L"FancyZones\\settings.json", { L"properties/fancyzones_excluded_apps" } },
+    { L"MouseWithoutBorders\\settings.json", { L"properties/SecurityKey" } }, // avoid leaking connection key
+    { L"Keyboard Manager\\default.json", {
+        L"remapKeysToText",
+        L"remapShortcutsToText",
+        L"remapShortcuts/global/runProgramFilePath",
+        L"remapShortcuts/global/runProgramArgs",
+        L"remapShortcuts/global/runProgramStartInDir",
+        L"remapShortcuts/global/openUri",
+        L"remapShortcuts/appSpecific/runProgramFilePath",
+        L"remapShortcuts/appSpecific/runProgramArgs",
+        L"remapShortcuts/appSpecific/runProgramStartInDir",
+        L"remapShortcuts/appSpecific/openUri",
+        } }, // avoid leaking personal information from text, URI or application mappings
+    { L"Workspaces/workspaces.json", { L"workspaces/applications/command-line-arguments" } },
+    { L"AdvancedPaste/settings.json", {
+        L"properties/custom-actions/value/name",
+        L"properties/custom-actions/value/prompt"
+        } },
 };
 
 vector<wstring> filesToDelete = {
+    L"AdvancedPaste\\lastQuery.json",
+    L"AdvancedPaste\\kernelQueryCache.json",
     L"PowerToys Run\\Cache",
     L"PowerRename\\replace-mru.json",
     L"PowerRename\\search-mru.json",
     L"PowerToys Run\\Settings\\UserSelectedRecord.json",
-    L"PowerToys Run\\Settings\\QueryHistory.json"
+    L"PowerToys Run\\Settings\\QueryHistory.json",
+    L"NewPlus\\Templates",
+    L"etw",
 };
 
 vector<wstring> GetXpathArray(wstring xpath)
@@ -166,7 +188,7 @@ void ReportWindowsVersion(const filesystem::path& tmpDir)
     {
         NTSTATUS(WINAPI * RtlGetVersion)
         (LPOSVERSIONINFOEXW) = nullptr;
-        *(FARPROC*)&RtlGetVersion = GetProcAddress(GetModuleHandleA("ntdll"), "RtlGetVersion");
+        *reinterpret_cast<FARPROC*>(& RtlGetVersion) = GetProcAddress(GetModuleHandleA("ntdll"), "RtlGetVersion");
         if (RtlGetVersion)
         {
             osInfo.dwOSVersionInfoSize = sizeof(osInfo);
@@ -247,16 +269,10 @@ void ReportDotNetInstallationInfo(const filesystem::path& tmpDir)
     }
 }
 
-void ReportVCMLogs(const filesystem::path& tmpDir, const filesystem::path& reportDir)
-{
-    error_code ec;
-    copy(tmpDir / "PowerToysVideoConference_x86.log", reportDir, ec);
-    copy(tmpDir / "PowerToysVideoConference_x64.log", reportDir, ec);
-}
-
 void ReportInstallerLogs(const filesystem::path& tmpDir, const filesystem::path& reportDir)
 {
-    const char* logFilePrefix = "powertoys-bootstrapper-msi-";
+    const char* bootstrapperLogFilePrefix = "powertoys-bootstrapper-msi-";
+    const char* PTLogFilePrefix = "PowerToysMSIInstaller_";
 
     for (auto& entry : directory_iterator{ tmpDir })
     {
@@ -267,7 +283,7 @@ void ReportInstallerLogs(const filesystem::path& tmpDir, const filesystem::path&
         }
 
         const auto fileName = entry.path().filename().string();
-        if (!fileName.starts_with(logFilePrefix))
+        if (!fileName.starts_with(bootstrapperLogFilePrefix) && !fileName.starts_with(PTLogFilePrefix))
         {
             continue;
         }
@@ -365,8 +381,6 @@ int wmain(int argc, wchar_t* argv[], wchar_t*)
     // Write event viewer logs info to the temporary folder
     EventViewer::ReportEventViewerInfo(reportDir);
 
-    ReportVCMLogs(tempDir, reportDir);
-    
     ReportInstallerLogs(tempDir, reportDir);
 
     ReportInstalledContextMenuPackages(reportDir);

@@ -6,6 +6,7 @@ using System;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+
 using global::PowerToys.GPOWrapper;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Helpers;
@@ -29,13 +30,21 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         {
             SettingsUtils = settingsUtils;
 
-            if (settingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(settingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(settingsRepository);
 
             GeneralSettingsConfig = settingsRepository.SettingsConfig;
 
+            InitializeEnabledValue();
+
+            ArgumentNullException.ThrowIfNull(measureToolSettingsRepository);
+
+            Settings = measureToolSettingsRepository.SettingsConfig;
+
+            SendConfigMSG = ipcMSGCallBackFunc;
+        }
+
+        private void InitializeEnabledValue()
+        {
             _enabledGpoRuleConfiguration = GPOWrapper.GetConfiguredScreenRulerEnabledValue();
             if (_enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled)
             {
@@ -47,15 +56,6 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 _isEnabled = GeneralSettingsConfig.Enabled.MeasureTool;
             }
-
-            if (measureToolSettingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(measureToolSettingsRepository));
-            }
-
-            Settings = measureToolSettingsRepository.SettingsConfig;
-
-            SendConfigMSG = ipcMSGCallBackFunc;
         }
 
         public bool IsEnabled
@@ -204,7 +204,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 if (Settings.Properties.ActivationShortcut != value)
                 {
-                    Settings.Properties.ActivationShortcut = value;
+                    Settings.Properties.ActivationShortcut = value ?? Settings.Properties.DefaultActivationShortcut;
 
                     NotifyPropertyChanged();
 
@@ -214,6 +214,23 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                          "{{ \"powertoys\": {{ \"{0}\": {1} }} }}",
                          MeasureToolSettings.ModuleName,
                          JsonSerializer.Serialize(Settings)));
+                }
+            }
+        }
+
+        public int DefaultMeasureStyle
+        {
+            get
+            {
+                return Settings.Properties.DefaultMeasureStyle.Value;
+            }
+
+            set
+            {
+                if (Settings.Properties.DefaultMeasureStyle.Value != value)
+                {
+                    Settings.Properties.DefaultMeasureStyle.Value = value;
+                    NotifyPropertyChanged();
                 }
             }
         }
@@ -228,6 +245,13 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             }
 
             SettingsUtils.SaveSettings(Settings.ToJsonString(), MeasureToolSettings.ModuleName);
+        }
+
+        public void RefreshEnabledState()
+        {
+            InitializeEnabledValue();
+            OnPropertyChanged(nameof(IsEnabled));
+            OnPropertyChanged(nameof(ShowContinuousCaptureWarning));
         }
 
         public bool ShowContinuousCaptureWarning

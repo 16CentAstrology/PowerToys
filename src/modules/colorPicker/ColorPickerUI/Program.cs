@@ -3,9 +3,11 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+
 using ColorPicker.Helpers;
 using ColorPicker.Mouse;
 using ColorPickerUI;
+using ManagedCommon;
 
 namespace ColorPicker
 {
@@ -16,6 +18,8 @@ namespace ColorPicker
         [STAThread]
         public static void Main(string[] args)
         {
+            Logger.InitializeLogger("\\ColorPicker\\Logs");
+
             _args = args;
             Logger.LogInfo($"Color Picker started with pid={Environment.ProcessId}");
 

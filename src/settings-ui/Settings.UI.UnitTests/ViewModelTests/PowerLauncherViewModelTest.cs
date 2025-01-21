@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.UnitTests.BackwardsCompatibility;
 using Microsoft.PowerToys.Settings.UI.ViewModels;
@@ -14,7 +15,7 @@ namespace ViewModelTests
     [TestClass]
     public class PowerLauncherViewModelTest
     {
-        private class SendCallbackMock
+        private sealed class SendCallbackMock
         {
             public int TimesSent { get; set; }
 
@@ -71,6 +72,7 @@ namespace ViewModelTests
             // Verify that the old settings persisted
             Assert.AreEqual(originalGeneralSettings.Enabled.PowerLauncher, viewModel.EnablePowerLauncher);
             Assert.AreEqual(originalSettings.Properties.ClearInputOnLaunch, viewModel.ClearInputOnLaunch);
+            Assert.AreEqual(originalSettings.Properties.TabSelectsContextButtons, viewModel.TabSelectsContextButtons);
             Assert.AreEqual(originalSettings.Properties.CopyPathLocation.ToString(), viewModel.CopyPathLocation.ToString());
             Assert.AreEqual(originalSettings.Properties.IgnoreHotkeysInFullscreen, viewModel.IgnoreHotkeysInFullScreen);
             Assert.AreEqual(originalSettings.Properties.MaximumNumberOfResults, viewModel.MaximumNumberOfResults);
@@ -79,6 +81,10 @@ namespace ViewModelTests
             Assert.AreEqual(originalSettings.Properties.OverrideWinkeyS, viewModel.OverrideWinSKey);
             Assert.AreEqual(originalSettings.Properties.SearchResultPreference, viewModel.SearchResultPreference);
             Assert.AreEqual(originalSettings.Properties.SearchTypePreference, viewModel.SearchTypePreference);
+            Assert.AreEqual(originalSettings.Properties.GenerateThumbnailsFromFiles, viewModel.GenerateThumbnailsFromFiles);
+            Assert.AreEqual(originalSettings.Properties.UsePinyin, viewModel.UsePinyin);
+            Assert.AreEqual(originalSettings.Properties.ShowPluginsOverview, viewModel.ShowPluginsOverviewIndex);
+            Assert.AreEqual(originalSettings.Properties.TitleFontSize, viewModel.TitleFontSize);
 
             // Verify that the stub file was used
             var expectedCallCount = 2;  // once via the view model, and once by the test (GetSettings<T>)

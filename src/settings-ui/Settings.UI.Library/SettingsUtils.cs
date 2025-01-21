@@ -6,17 +6,24 @@ using System;
 using System.IO;
 using System.IO.Abstractions;
 using System.Text.Json;
+
+using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library.Interfaces;
-using Microsoft.PowerToys.Settings.UI.Library.Utilities;
 
 namespace Microsoft.PowerToys.Settings.UI.Library
 {
     public class SettingsUtils : ISettingsUtils
     {
-        private const string DefaultFileName = "settings.json";
+        public const string DefaultFileName = "settings.json";
         private const string DefaultModuleName = "";
         private readonly IFile _file;
         private readonly ISettingsPath _settingsPath;
+
+        private static readonly JsonSerializerOptions _serializerOptions = new JsonSerializerOptions
+        {
+            MaxDepth = 0,
+            IncludeFields = true,
+        };
 
         public SettingsUtils()
             : this(new FileSystem())
@@ -150,7 +157,9 @@ namespace Microsoft.PowerToys.Settings.UI.Library
             // This, while not totally ideal, does work around the problem by trimming the end.
             // The file itself did write the content correctly but something is off with the actual end of the file, hence the 0x00 bug
             var jsonSettingsString = _file.ReadAllText(_settingsPath.GetSettingsPath(powertoyFolderName, fileName)).Trim('\0');
-            return JsonSerializer.Deserialize<T>(jsonSettingsString);
+
+            var options = _serializerOptions;
+            return JsonSerializer.Deserialize<T>(jsonSettingsString, options);
         }
 
         // Save settings to a json file.
@@ -189,7 +198,7 @@ namespace Microsoft.PowerToys.Settings.UI.Library
         /// <summary>
         /// Method <c>BackupSettings</c> Mostly a wrapper for SettingsBackupAndRestoreUtils.BackupSettings
         /// </summary>
-        public static (bool success, string message, string severity, bool lastBackupExists) BackupSettings()
+        public static (bool Success, string Message, string Severity, bool LastBackupExists, string OptionalMessage) BackupSettings()
         {
             var settingsBackupAndRestoreUtilsX = SettingsBackupAndRestoreUtils.Instance;
             var settingsUtils = new SettingsUtils();
@@ -202,7 +211,7 @@ namespace Microsoft.PowerToys.Settings.UI.Library
         /// <summary>
         /// Method <c>RestoreSettings</c> Mostly a wrapper for SettingsBackupAndRestoreUtils.RestoreSettings
         /// </summary>
-        public static (bool success, string message, string severity) RestoreSettings()
+        public static (bool Success, string Message, string Severity) RestoreSettings()
         {
             var settingsBackupAndRestoreUtilsX = SettingsBackupAndRestoreUtils.Instance;
             var settingsUtils = new SettingsUtils();

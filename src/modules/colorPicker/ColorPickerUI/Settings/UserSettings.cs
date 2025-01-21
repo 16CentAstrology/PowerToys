@@ -3,13 +3,16 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel.Composition;
 using System.IO;
 using System.IO.Abstractions;
-using System.Linq;
+using System.Text.Json;
 using System.Threading;
+
 using ColorPicker.Common;
+using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Enumerations;
 using Microsoft.PowerToys.Settings.UI.Library.Utilities;
@@ -20,8 +23,9 @@ namespace ColorPicker.Settings
     [Export(typeof(IUserSettings))]
     public class UserSettings : IUserSettings
     {
-        private readonly ISettingsUtils _settingsUtils;
+        private readonly SettingsUtils _settingsUtils;
         private const string ColorPickerModuleName = "ColorPicker";
+        private const string ColorPickerHistoryFilename = "colorHistory.json";
         private const string DefaultActivationShortcut = "Ctrl + Break";
         private const int MaxNumberOfRetry = 5;
         private const int SettingsReadOnChangeDelayInMs = 300;
@@ -29,9 +33,14 @@ namespace ColorPicker.Settings
         [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0052:Remove unread private members", Justification = "Actually, call back is LoadSettingsFromJson")]
         private readonly IFileSystemWatcher _watcher;
 
-        private readonly object _loadingSettingsLock = new object();
+        private readonly Lock _loadingSettingsLock = new Lock();
 
         private bool _loadingColorsHistory;
+
+        private static readonly JsonSerializerOptions _serializerOptions = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+        };
 
         [ImportingConstructor]
         public UserSettings(Helpers.IThrottledActionInvoker throttledActionInvoker)
@@ -55,11 +64,7 @@ namespace ColorPicker.Settings
         {
             if (!_loadingColorsHistory)
             {
-                var settings = _settingsUtils.GetSettingsOrDefault<ColorPickerSettings, ColorPickerSettingsVersion1>(ColorPickerModuleName, settingsUpgrader: ColorPickerSettings.UpgradeSettings);
-                ColorHistory.CollectionChanged -= ColorHistory_CollectionChanged;
-                settings.Properties.ColorHistory = ColorHistory.ToList();
-                ColorHistory.CollectionChanged += ColorHistory_CollectionChanged;
-                settings.Save(_settingsUtils);
+                _settingsUtils.SaveSettings(JsonSerializer.Serialize(ColorHistory, _serializerOptions), ColorPickerModuleName, ColorPickerHistoryFilename);
             }
         }
 
@@ -119,14 +124,31 @@ namespace ColorPicker.Settings
                                 ColorHistoryLimit.Value = settings.Properties.ColorHistoryLimit;
                                 ShowColorName.Value = settings.Properties.ShowColorName;
 
-                                if (settings.Properties.ColorHistory == null)
+                                List<string> savedColorHistory = new List<string>();
+                                try
                                 {
-                                    settings.Properties.ColorHistory = new System.Collections.Generic.List<string>();
+                                    string filePath = _settingsUtils.GetSettingsFilePath(ColorPickerModuleName, ColorPickerHistoryFilename);
+                                    if (!File.Exists(filePath))
+                                    {
+                                        if (settings.Properties.ColorHistory != null)
+                                        {
+                                            savedColorHistory = settings.Properties.ColorHistory;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        string jsonSettingsString = System.IO.File.ReadAllText(filePath).Trim('\0');
+                                        savedColorHistory = JsonSerializer.Deserialize<List<string>>(jsonSettingsString);
+                                    }
+                                }
+                                catch (Exception)
+                                {
+                                    Logger.LogInfo("ColorPicker colorHistory.json was missing or corrupt");
                                 }
 
                                 _loadingColorsHistory = true;
                                 ColorHistory.Clear();
-                                foreach (var item in settings.Properties.ColorHistory)
+                                foreach (var item in savedColorHistory)
                                 {
                                     ColorHistory.Add(item);
                                 }

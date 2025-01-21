@@ -6,13 +6,15 @@ using System.Globalization;
 using System.Text;
 using System.Unicode;
 using System.Windows;
+
+using ManagedCommon;
 using PowerAccent.Core.Services;
 using PowerAccent.Core.Tools;
 using PowerToys.PowerAccentKeyboardService;
 
 namespace PowerAccent.Core;
 
-public class PowerAccent : IDisposable
+public partial class PowerAccent : IDisposable
 {
     private readonly SettingsService _settingService;
 
@@ -37,13 +39,18 @@ public class PowerAccent : IDisposable
 
     private readonly KeyboardListener _keyboardListener;
 
+    private readonly CharactersUsageInfo _usageInfo;
+
     public PowerAccent()
     {
+        Logger.InitializeLogger("\\QuickAccent\\Logs");
+
         LoadUnicodeInfoCache();
 
         _keyboardListener = new KeyboardListener();
         _keyboardListener.InitHook();
         _settingService = new SettingsService(_keyboardListener);
+        _usageInfo = new CharactersUsageInfo();
 
         SetEvents();
     }
@@ -88,9 +95,9 @@ public class PowerAccent : IDisposable
     private void ShowToolbar(LetterKey letterKey)
     {
         _visible = true;
-        _characters = (WindowsFunctions.IsCapsLockState() || WindowsFunctions.IsShiftState()) ? ToUpper(Languages.GetDefaultLetterKey(letterKey, _settingService.SelectedLang)) : Languages.GetDefaultLetterKey(letterKey, _settingService.SelectedLang);
-        _characterDescriptions = GetCharacterDescriptions(_characters);
 
+        _characters = GetCharacters(letterKey);
+        _characterDescriptions = GetCharacterDescriptions(_characters);
         _showUnicodeDescription = _settingService.ShowUnicodeDescription;
 
         Task.Delay(_settingService.InputTime).ContinueWith(
@@ -100,7 +107,30 @@ public class PowerAccent : IDisposable
             {
                 OnChangeDisplay?.Invoke(true, _characters);
             }
-        }, TaskScheduler.FromCurrentSynchronizationContext());
+        },
+        TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    private string[] GetCharacters(LetterKey letterKey)
+    {
+        var characters = Languages.GetDefaultLetterKey(letterKey, _settingService.SelectedLang);
+        if (_settingService.SortByUsageFrequency)
+        {
+            characters = characters.OrderByDescending(character => _usageInfo.GetUsageFrequency(character))
+                .ThenByDescending(character => _usageInfo.GetLastUsageTimestamp(character)).
+                ToArray<string>();
+        }
+        else if (!_usageInfo.Empty())
+        {
+            _usageInfo.Clear();
+        }
+
+        if (WindowsFunctions.IsCapsLockState() || WindowsFunctions.IsShiftState())
+        {
+            return ToUpper(characters);
+        }
+
+        return characters;
     }
 
     private string GetCharacterDescription(string character)
@@ -121,7 +151,7 @@ public class PowerAccent : IDisposable
         {
             var unicode = unicodeList.First();
             var charUnicodeNumber = unicode.CodePoint.ToString("X4", CultureInfo.InvariantCulture);
-            description.AppendFormat(CultureInfo.InvariantCulture, "(U+{0}) {1} ", charUnicodeNumber, unicode.Name);
+            description.AppendFormat(CultureInfo.InvariantCulture, "(U+{0}) {1}", charUnicodeNumber, unicode.Name);
 
             return description.ToString();
         }
@@ -174,11 +204,28 @@ public class PowerAccent : IDisposable
                     break;
                 }
 
+            case InputType.Right:
+                {
+                    SendKeys.SendWait("{RIGHT}");
+                    break;
+                }
+
+            case InputType.Left:
+                {
+                    SendKeys.SendWait("{LEFT}");
+                    break;
+                }
+
             case InputType.Char:
                 {
                     if (_selectedIndex != -1)
                     {
                         WindowsFunctions.Insert(_characters[_selectedIndex], true);
+
+                        if (_settingService.SortByUsageFrequency)
+                        {
+                            _usageInfo.IncrementUsageFrequency(_characters[_selectedIndex]);
+                        }
                     }
 
                     break;
@@ -204,7 +251,7 @@ public class PowerAccent : IDisposable
                 _selectedIndex = _characters.Length / 2;
             }
 
-            if (triggerKey == TriggerKey.Space)
+            if (triggerKey == TriggerKey.Space || _settingService.StartSelectionFromTheLeft)
             {
                 _selectedIndex = 0;
             }
@@ -285,6 +332,11 @@ public class PowerAccent : IDisposable
         return Calculation.GetRawCoordinatesFromPosition(position, screen, window);
     }
 
+    public Position GetToolbarPosition()
+    {
+        return _settingService.Position;
+    }
+
     public void Dispose()
     {
         _keyboardListener.UnInitHook();
@@ -296,7 +348,15 @@ public class PowerAccent : IDisposable
         string[] result = new string[array.Length];
         for (int i = 0; i < array.Length; i++)
         {
-            result[i] = array[i].Contains('ß') ? "ẞ" : array[i].ToUpper(System.Globalization.CultureInfo.InvariantCulture);
+            switch (array[i])
+            {
+                case "ß": result[i] = "ẞ"; break;
+                case "ǰ": result[i] = "J\u030c"; break;
+                case "ı\u0307\u0304": result[i] = "İ\u0304"; break;
+                case "ı": result[i] = "İ"; break;
+                case "ᵛ": result[i] = "ⱽ"; break;
+                default: result[i] = array[i].ToUpper(System.Globalization.CultureInfo.InvariantCulture); break;
+            }
         }
 
         return result;

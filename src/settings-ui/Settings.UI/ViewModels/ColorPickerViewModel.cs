@@ -9,13 +9,13 @@ using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Timers;
+
 using global::PowerToys.GPOWrapper;
 using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Enumerations;
 using Microsoft.PowerToys.Settings.UI.Library.Helpers;
 using Microsoft.PowerToys.Settings.UI.Library.Interfaces;
-using Windows.ApplicationModel.Resources;
 
 namespace Microsoft.PowerToys.Settings.UI.ViewModels
 {
@@ -29,7 +29,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         private GeneralSettings GeneralSettingsConfig { get; set; }
 
         private readonly ISettingsUtils _settingsUtils;
-        private readonly object _delayedActionLock = new object();
+        private readonly System.Threading.Lock _delayedActionLock = new System.Threading.Lock();
 
         private readonly ColorPickerSettings _colorPickerSettings;
         private Timer _delayedTimer;
@@ -50,10 +50,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             Func<string, int> ipcMSGCallBackFunc)
         {
             // Obtain the general PowerToy settings configurations
-            if (settingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(settingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(settingsRepository);
 
             GeneralSettingsConfig = settingsRepository.SettingsConfig;
 
@@ -69,6 +66,21 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                 _colorPickerSettings = colorPickerSettingsRepository.SettingsConfig; // used in the unit tests
             }
 
+            InitializeEnabledValue();
+
+            // set the callback functions value to handle outgoing IPC message.
+            SendConfigMSG = ipcMSGCallBackFunc;
+
+            _delayedTimer = new Timer();
+            _delayedTimer.Interval = SaveSettingsDelayInMs;
+            _delayedTimer.Elapsed += DelayedTimer_Tick;
+            _delayedTimer.AutoReset = false;
+
+            InitializeColorFormats();
+        }
+
+        private void InitializeEnabledValue()
+        {
             _enabledGpoRuleConfiguration = GPOWrapper.GetConfiguredColorPickerEnabledValue();
             if (_enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled)
             {
@@ -80,16 +92,6 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 _isEnabled = GeneralSettingsConfig.Enabled.ColorPicker;
             }
-
-            // set the callback functions value to hangle outgoing IPC message.
-            SendConfigMSG = ipcMSGCallBackFunc;
-
-            _delayedTimer = new Timer();
-            _delayedTimer.Interval = SaveSettingsDelayInMs;
-            _delayedTimer.Elapsed += DelayedTimer_Tick;
-            _delayedTimer.AutoReset = false;
-
-            InitializeColorFormats();
         }
 
         public bool IsEnabled
@@ -143,7 +145,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 if (_colorPickerSettings.Properties.ActivationShortcut != value)
                 {
-                    _colorPickerSettings.Properties.ActivationShortcut = value;
+                    _colorPickerSettings.Properties.ActivationShortcut = value ?? _colorPickerSettings.Properties.DefaultActivationShortcut;
                     OnPropertyChanged(nameof(ActivationShortcut));
                     NotifySettingsChanged();
                 }
@@ -236,7 +238,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 // skip entries with empty name or duplicated name, it should never occur
                 string storedName = storedColorFormat.Key;
-                if (storedName == string.Empty || ColorFormats.Count(x => x.Name.ToUpperInvariant().Equals(storedName.ToUpperInvariant(), StringComparison.Ordinal)) > 0)
+                if (storedName == string.Empty || ColorFormats.Any(x => x.Name.ToUpperInvariant().Equals(storedName.ToUpperInvariant(), StringComparison.Ordinal)))
                 {
                     continue;
                 }
@@ -296,13 +298,16 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
 
             UpdateColorFormats();
             UpdateColorFormatPreview();
-            ScheduleSavingOfSettings();
         }
 
         private void ColorFormat_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            UpdateColorFormats();
-            ScheduleSavingOfSettings();
+            // Remaining properties are handled by the collection and by the dialog
+            if (e.PropertyName == nameof(ColorFormatModel.IsShown))
+            {
+                UpdateColorFormats();
+                ScheduleSavingOfSettings();
+            }
         }
 
         private void ScheduleSavingOfSettings()
@@ -360,6 +365,12 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                        JsonSerializer.Serialize(_colorPickerSettings)));
         }
 
+        public void RefreshEnabledState()
+        {
+            InitializeEnabledValue();
+            OnPropertyChanged(nameof(IsEnabled));
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -381,7 +392,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
 
         internal ColorFormatModel GetNewColorFormatModel()
         {
-            var resourceLoader = ResourceLoader.GetForViewIndependentUse();
+            var resourceLoader = Helpers.ResourceLoaderInstance.ResourceLoader;
             string defaultName = resourceLoader.GetString("CustomColorFormatDefaultName");
             ColorFormatModel newColorFormatModel = new ColorFormatModel();
             newColorFormatModel.Name = defaultName;
@@ -395,7 +406,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             return newColorFormatModel;
         }
 
-        internal void SetValidity(ColorFormatModel colorFormatModel, string oldName)
+        internal bool SetValidity(ColorFormatModel colorFormatModel, string oldName)
         {
             if ((colorFormatModel.Format == string.Empty) || (colorFormatModel.Name == string.Empty))
             {
@@ -410,12 +421,15 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                 colorFormatModel.IsValid = ColorFormats.Count(x => x.Name.ToUpperInvariant().Equals(colorFormatModel.Name.ToUpperInvariant(), StringComparison.Ordinal))
                     < (colorFormatModel.IsNew ? 1 : 2);
             }
+
+            return colorFormatModel.IsValid;
         }
 
-        internal void DeleteModel(ColorFormatModel colorFormatModel)
+        internal int DeleteModel(ColorFormatModel colorFormatModel)
         {
+            var deleteIndex = ColorFormats.IndexOf(colorFormatModel);
             ColorFormats.Remove(colorFormatModel);
-            SetPreviewSelectedIndex();
+            return deleteIndex;
         }
 
         internal void UpdateColorFormat(string oldName, ColorFormatModel colorFormat)
@@ -425,6 +439,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                 SelectedColorRepresentationValue = colorFormat.Name;    // name might be changed by the user
             }
 
+            UpdateColorFormats();
             UpdateColorFormatPreview();
         }
 

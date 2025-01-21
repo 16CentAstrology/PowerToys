@@ -1,11 +1,16 @@
 #include "pch.h"
 
 #include "ExplorerCommand.h"
-#include "Constants.h"
-#include "Settings.h"
 #include "dllmain.h"
-#include "Trace.h"
 #include "Generated Files/resource.h"
+
+#include "FileLocksmithLib/Constants.h"
+#include "FileLocksmithLib/Settings.h"
+#include "FileLocksmithLib/Trace.h"
+
+#include <common/themes/icon_helpers.h>
+#include <common/utils/process_path.h>
+#include <common/utils/resources.h>
 
 // Implementations of inherited IUnknown methods
 
@@ -39,16 +44,15 @@ IFACEMETHODIMP_(ULONG) ExplorerCommand::Release()
 
 IFACEMETHODIMP ExplorerCommand::GetTitle(IShellItemArray* psiItemArray, LPWSTR* ppszName)
 {
-    WCHAR buffer[128];
-    LoadStringW(globals::instance, IDS_FILELOCKSMITH_COMMANDTITLE, buffer, ARRAYSIZE(buffer));
-    return SHStrDupW(buffer, ppszName);
+    return SHStrDup(context_menu_caption.c_str(), ppszName);
 }
 
 IFACEMETHODIMP ExplorerCommand::GetIcon(IShellItemArray* psiItemArray, LPWSTR* ppszIcon)
 {
-    // Path to the icon should be computed relative to the path of this module
-    ppszIcon = NULL;
-    return E_NOTIMPL;
+    std::wstring iconResourcePath = get_module_filename();
+    iconResourcePath += L",-";
+    iconResourcePath += std::to_wstring(IDI_FILELOCKSMITH);
+    return SHStrDup(iconResourcePath.c_str(), ppszIcon);
 }
 
 IFACEMETHODIMP ExplorerCommand::GetToolTip(IShellItemArray* psiItemArray, LPWSTR* ppszInfotip)
@@ -65,14 +69,7 @@ IFACEMETHODIMP ExplorerCommand::GetCanonicalName(GUID* pguidCommandName)
 
 IFACEMETHODIMP ExplorerCommand::GetState(IShellItemArray* psiItemArray, BOOL fOkToBeSlow, EXPCMDSTATE* pCmdState)
 {
-    if (globals::enabled)
-    {
-        *pCmdState = ECS_ENABLED;
-    }
-    else
-    {
-        *pCmdState = ECS_HIDDEN;
-    }
+    *pCmdState = FileLocksmithSettingsInstance().GetEnabled() ? ECS_ENABLED : ECS_HIDDEN;
     return S_OK;
 }
 
@@ -97,8 +94,17 @@ IFACEMETHODIMP ExplorerCommand::EnumSubCommands(IEnumExplorerCommand** ppEnum)
 
 IFACEMETHODIMP ExplorerCommand::Initialize(PCIDLIST_ABSOLUTE pidlFolder, IDataObject* pdtobj, HKEY hkeyProgID)
 {
-    m_data_obj = pdtobj;
-    m_data_obj->AddRef();
+    m_data_obj = NULL;
+
+    if (!FileLocksmithSettingsInstance().GetEnabled())
+    {
+        return E_FAIL;
+    }
+
+    if (pdtobj)
+    {
+        m_data_obj = pdtobj;
+    }
     return S_OK;
 }
 
@@ -109,32 +115,50 @@ IFACEMETHODIMP ExplorerCommand::QueryContextMenu(HMENU hmenu, UINT indexMenu, UI
     // Skip if disabled
     if (!FileLocksmithSettingsInstance().GetEnabled())
     {
-        return S_OK;
+        return E_FAIL;
+    }
+
+    if (FileLocksmithSettingsInstance().GetShowInExtendedContextMenu() && !(uFlags & CMF_EXTENDEDVERBS))
+    {
+        return E_FAIL;
     }
 
     HRESULT hr = E_UNEXPECTED;
     if (m_data_obj && !(uFlags & (CMF_DEFAULTONLY | CMF_VERBSONLY | CMF_OPTIMIZEFORINVOKE)))
     {
+        wchar_t menuName[128] = { 0 };
+        wcscpy_s(menuName, ARRAYSIZE(menuName), context_menu_caption.c_str());
+
         MENUITEMINFO mii;
         mii.cbSize = sizeof(MENUITEMINFO);
         mii.fMask = MIIM_STRING | MIIM_FTYPE | MIIM_ID | MIIM_STATE;
         mii.wID = idCmdFirst++;
         mii.fType = MFT_STRING;
-
-        hr = GetTitle(NULL, &mii.dwTypeData);
-        if (FAILED(hr))
-        {
-            return hr;
-        }
-
+        mii.dwTypeData = (PWSTR)menuName;
         mii.fState = MFS_ENABLED;
 
-        // TODO icon from file
+        // icon from file
+        HICON hIcon = static_cast<HICON>(LoadImage(globals::instance, MAKEINTRESOURCE(IDI_FILELOCKSMITH), IMAGE_ICON, 16, 16, 0));
+        if (hIcon)
+        {
+            mii.fMask |= MIIM_BITMAP;
+            if (m_hbmpIcon == NULL)
+            {
+                m_hbmpIcon = CreateBitmapFromIcon(hIcon);
+            }
+            mii.hbmpItem = m_hbmpIcon;
+            DestroyIcon(hIcon);
+        }
 
         if (!InsertMenuItem(hmenu, indexMenu, TRUE, &mii))
         {
+            m_etwTrace.UpdateState(true);
+
             hr = HRESULT_FROM_WIN32(GetLastError());
             Trace::QueryContextMenuError(hr);
+
+            m_etwTrace.Flush();
+            m_etwTrace.UpdateState(false);
         }
         else
         {
@@ -147,51 +171,67 @@ IFACEMETHODIMP ExplorerCommand::QueryContextMenu(HMENU hmenu, UINT indexMenu, UI
 
 IFACEMETHODIMP ExplorerCommand::InvokeCommand(CMINVOKECOMMANDINFO* pici)
 {
-    Trace::Invoked();
-    ipc::Writer writer;
+    m_etwTrace.UpdateState(true);
 
-    if (HRESULT result = writer.start(); FAILED(result))
-    {
-        Trace::InvokedRet(result);
-        return result;
-    }
+    HRESULT hr = E_FAIL;
 
-    if (HRESULT result = LaunchUI(pici, &writer); FAILED(result))
+    if (FileLocksmithSettingsInstance().GetEnabled() &&
+        pici && (IS_INTRESOURCE(pici->lpVerb)) &&
+        (LOWORD(pici->lpVerb) == 0))
     {
-        Trace::InvokedRet(result);
-        return result;
-    }
+        Trace::Invoked();
+        ipc::Writer writer;
 
-    IShellItemArray* shell_item_array;
-    HRESULT result = SHCreateShellItemArrayFromDataObject(m_data_obj, __uuidof(IShellItemArray), reinterpret_cast<void**>(&shell_item_array));
-    if (SUCCEEDED(result))
-    {
-        DWORD num_items;
-        shell_item_array->GetCount(&num_items);
-        for (DWORD i = 0; i < num_items; i++)
+        if (HRESULT result = writer.start(); FAILED(result))
         {
-            IShellItem* item;
-            result = shell_item_array->GetItemAt(i, &item);
-            if (SUCCEEDED(result))
-            {
-                LPWSTR file_path;
-                result = item->GetDisplayName(SIGDN_FILESYSPATH, &file_path);
-                if (SUCCEEDED(result))
-                {
-                    // TODO Aggregate items and send to UI
-                    writer.add_path(file_path);
-                    CoTaskMemFree(file_path);
-                }
-
-                item->Release();
-            }
+            Trace::InvokedRet(result);
+            m_etwTrace.Flush();
+            m_etwTrace.UpdateState(false);
+            return result;
         }
 
-        shell_item_array->Release();
+        if (HRESULT result = LaunchUI(pici, &writer); FAILED(result))
+        {
+            Trace::InvokedRet(result);
+            m_etwTrace.Flush();
+            m_etwTrace.UpdateState(false);
+            return result;
+        }
+
+        IShellItemArray* shell_item_array;
+        hr = SHCreateShellItemArrayFromDataObject(m_data_obj, __uuidof(IShellItemArray), reinterpret_cast<void**>(&shell_item_array));
+        if (SUCCEEDED(hr))
+        {
+            DWORD num_items;
+            shell_item_array->GetCount(&num_items);
+            for (DWORD i = 0; i < num_items; i++)
+            {
+                IShellItem* item;
+                hr = shell_item_array->GetItemAt(i, &item);
+                if (SUCCEEDED(hr))
+                {
+                    LPWSTR file_path;
+                    hr = item->GetDisplayName(SIGDN_FILESYSPATH, &file_path);
+                    if (SUCCEEDED(hr))
+                    {
+                        // TODO Aggregate items and send to UI
+                        writer.add_path(file_path);
+                        CoTaskMemFree(file_path);
+                    }
+
+                    item->Release();
+                }
+            }
+
+            shell_item_array->Release();
+        }
     }
 
-    Trace::InvokedRet(S_OK);
-    return S_OK;
+    Trace::InvokedRet(hr);
+
+    m_etwTrace.Flush();
+    m_etwTrace.UpdateState(false);
+    return hr;
 }
 
 IFACEMETHODIMP ExplorerCommand::GetCommandString(UINT_PTR idCmd, UINT uType, UINT* pReserved, CHAR* pszName, UINT cchMax)
@@ -215,39 +255,12 @@ HRESULT ExplorerCommand::s_CreateInstance(IUnknown* pUnkOuter, REFIID riid, void
 ExplorerCommand::ExplorerCommand()
 {
     ++globals::ref_count;
+    context_menu_caption = GET_RESOURCE_STRING_FALLBACK(IDS_FILELOCKSMITH_CONTEXT_MENU_ENTRY, L"Unlock with File Locksmith");
 }
 
 ExplorerCommand::~ExplorerCommand()
 {
-    if (m_data_obj)
-    {
-        m_data_obj->Release();
-    }
     --globals::ref_count;
-}
-
-// Implementation taken from src/common/utils
-// TODO reference that function
-inline std::wstring get_module_folderpath(HMODULE mod = nullptr, const bool removeFilename = true)
-{
-    wchar_t buffer[MAX_PATH + 1];
-    DWORD actual_length = GetModuleFileNameW(mod, buffer, MAX_PATH + 1);
-    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
-    {
-        const DWORD long_path_length = 0xFFFF; // should be always enough
-        std::wstring long_filename(long_path_length, L'\0');
-        actual_length = GetModuleFileNameW(mod, long_filename.data(), long_path_length);
-        PathRemoveFileSpecW(long_filename.data());
-        long_filename.resize(std::wcslen(long_filename.data()));
-        long_filename.shrink_to_fit();
-        return long_filename;
-    }
-
-    if (removeFilename)
-    {
-        PathRemoveFileSpecW(buffer);
-    }
-    return { buffer, (UINT)lstrlenW(buffer) };
 }
 
 HRESULT ExplorerCommand::LaunchUI(CMINVOKECOMMANDINFO* pici, ipc::Writer* writer)

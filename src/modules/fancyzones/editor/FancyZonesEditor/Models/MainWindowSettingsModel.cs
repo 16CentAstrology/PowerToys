@@ -2,10 +2,12 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+
 using FancyZonesEditor.Models;
 
 namespace FancyZonesEditor
@@ -80,8 +82,8 @@ namespace FancyZonesEditor
             TemplateModels.Insert((int)LayoutType.PriorityGrid, priorityGridModel);
 
             // set default layouts
+            DefaultLayouts.Set(rowsModel, MonitorConfigurationType.Vertical);
             DefaultLayouts.Set(priorityGridModel, MonitorConfigurationType.Horizontal);
-            DefaultLayouts.Set(priorityGridModel, MonitorConfigurationType.Vertical);
         }
 
         // IsShiftKeyPressed - is the shift key currently being held down
@@ -231,7 +233,7 @@ namespace FancyZonesEditor
             {
                 foreach (LayoutModel model in CustomModels)
                 {
-                    if (model.Uuid == currentApplied.ZonesetUuid.ToUpperInvariant())
+                    if (string.Equals(model.Uuid, currentApplied.ZonesetUuid, StringComparison.OrdinalIgnoreCase))
                     {
                         // found match
                         foundModel = model;
@@ -261,36 +263,10 @@ namespace FancyZonesEditor
                 }
             }
 
-            if (foundModel == null)
-            {
-                foundModel = TemplateModels[(int)LayoutType.PriorityGrid];
-            }
-
             SetSelectedModel(foundModel);
             SetAppliedModel(foundModel);
             FirePropertyChanged(nameof(IsCustomLayoutActive));
             return foundModel;
-        }
-
-        public void RestoreSelectedModel(LayoutModel model)
-        {
-            if (SelectedModel == null || model == null)
-            {
-                return;
-            }
-
-            SelectedModel.SensitivityRadius = model.SensitivityRadius;
-            SelectedModel.TemplateZoneCount = model.TemplateZoneCount;
-            SelectedModel.IsSelected = model.IsSelected;
-            SelectedModel.IsApplied = model.IsApplied;
-            SelectedModel.Name = model.Name;
-            SelectedModel.QuickKey = model.QuickKey;
-
-            if (model is GridLayoutModel grid)
-            {
-                ((GridLayoutModel)SelectedModel).Spacing = grid.Spacing;
-                ((GridLayoutModel)SelectedModel).ShowSpacing = grid.ShowSpacing;
-            }
         }
 
         public void SetSelectedModel(LayoutModel model)

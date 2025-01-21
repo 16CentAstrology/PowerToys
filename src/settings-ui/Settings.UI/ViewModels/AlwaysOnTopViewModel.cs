@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using global::PowerToys.GPOWrapper;
+using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Helpers;
 using Microsoft.PowerToys.Settings.UI.Library.Interfaces;
@@ -26,29 +27,40 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
 
         public AlwaysOnTopViewModel(ISettingsUtils settingsUtils, ISettingsRepository<GeneralSettings> settingsRepository, ISettingsRepository<AlwaysOnTopSettings> moduleSettingsRepository, Func<string, int> ipcMSGCallBackFunc)
         {
-            if (settingsUtils == null)
-            {
-                throw new ArgumentNullException(nameof(settingsUtils));
-            }
+            ArgumentNullException.ThrowIfNull(settingsUtils);
 
             SettingsUtils = settingsUtils;
 
             // To obtain the general settings configurations of PowerToys Settings.
-            if (settingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(settingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(settingsRepository);
 
             GeneralSettingsConfig = settingsRepository.SettingsConfig;
 
+            InitializeEnabledValue();
+
             // To obtain the settings configurations of AlwaysOnTop.
-            if (moduleSettingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(moduleSettingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(moduleSettingsRepository);
 
             Settings = moduleSettingsRepository.SettingsConfig;
 
+            _hotkey = Settings.Properties.Hotkey.Value;
+            _frameEnabled = Settings.Properties.FrameEnabled.Value;
+            _frameThickness = Settings.Properties.FrameThickness.Value;
+            _frameColor = Settings.Properties.FrameColor.Value;
+            _frameOpacity = Settings.Properties.FrameOpacity.Value;
+            _frameAccentColor = Settings.Properties.FrameAccentColor.Value;
+            _soundEnabled = Settings.Properties.SoundEnabled.Value;
+            _doNotActivateOnGameMode = Settings.Properties.DoNotActivateOnGameMode.Value;
+            _roundCornersEnabled = Settings.Properties.RoundCornersEnabled.Value;
+            _excludedApps = Settings.Properties.ExcludedApps.Value;
+            _windows11 = OSVersionHelper.IsWindows11();
+
+            // set the callback functions value to handle outgoing IPC message.
+            SendConfigMSG = ipcMSGCallBackFunc;
+        }
+
+        private void InitializeEnabledValue()
+        {
             _enabledGpoRuleConfiguration = GPOWrapper.GetConfiguredAlwaysOnTopEnabledValue();
             if (_enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled)
             {
@@ -60,20 +72,6 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 _isEnabled = GeneralSettingsConfig.Enabled.AlwaysOnTop;
             }
-
-            _hotkey = Settings.Properties.Hotkey.Value;
-            _frameEnabled = Settings.Properties.FrameEnabled.Value;
-            _frameThickness = Settings.Properties.FrameThickness.Value;
-            _frameColor = Settings.Properties.FrameColor.Value;
-            _frameAccentColor = Settings.Properties.FrameAccentColor.Value;
-            _soundEnabled = Settings.Properties.SoundEnabled.Value;
-            _doNotActivateOnGameMode = Settings.Properties.DoNotActivateOnGameMode.Value;
-            _roundCornersEnabled = Settings.Properties.RoundCornersEnabled.Value;
-            _excludedApps = Settings.Properties.ExcludedApps.Value;
-            _windows11 = Helper.Windows11();
-
-            // set the callback functions value to hangle outgoing IPC message.
-            SendConfigMSG = ipcMSGCallBackFunc;
         }
 
         public bool IsEnabled
@@ -183,6 +181,21 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             }
         }
 
+        public int FrameOpacity
+        {
+            get => _frameOpacity;
+
+            set
+            {
+                if (value != _frameOpacity)
+                {
+                    _frameOpacity = value;
+                    Settings.Properties.FrameOpacity.Value = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
         public bool SoundEnabled
         {
             get => _soundEnabled;
@@ -274,6 +287,12 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             SettingsUtils.SaveSettings(Settings.ToJsonString(), AlwaysOnTopSettings.ModuleName);
         }
 
+        public void RefreshEnabledState()
+        {
+            InitializeEnabledValue();
+            OnPropertyChanged(nameof(IsEnabled));
+        }
+
         private GpoRuleConfigured _enabledGpoRuleConfiguration;
         private bool _enabledStateIsGPOConfigured;
         private bool _isEnabled;
@@ -282,6 +301,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         private int _frameThickness;
         private string _frameColor;
         private bool _frameAccentColor;
+        private int _frameOpacity;
         private bool _soundEnabled;
         private bool _doNotActivateOnGameMode;
         private bool _roundCornersEnabled;

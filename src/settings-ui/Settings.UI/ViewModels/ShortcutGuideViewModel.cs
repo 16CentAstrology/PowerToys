@@ -4,6 +4,7 @@
 
 using System;
 using System.Runtime.CompilerServices;
+
 using global::PowerToys.GPOWrapper;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Helpers;
@@ -34,36 +35,20 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             _settingsConfigFileFolder = configFileSubfolder;
 
             // To obtain the general PowerToys settings.
-            if (settingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(settingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(settingsRepository);
 
             GeneralSettingsConfig = settingsRepository.SettingsConfig;
 
             // To obtain the shortcut guide settings, if the file exists.
             // If not, to create a file with the default settings and to return the default configurations.
-            if (moduleSettingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(moduleSettingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(moduleSettingsRepository);
 
             Settings = moduleSettingsRepository.SettingsConfig;
 
-            // set the callback functions value to hangle outgoing IPC message.
+            // set the callback functions value to handle outgoing IPC message.
             SendConfigMSG = ipcMSGCallBackFunc;
 
-            _enabledGpoRuleConfiguration = GPOWrapper.GetConfiguredShortcutGuideEnabledValue();
-            if (_enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled)
-            {
-                // Get the enabled state from GPO.
-                _enabledStateIsGPOConfigured = true;
-                _isEnabled = _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled;
-            }
-            else
-            {
-                _isEnabled = GeneralSettingsConfig.Enabled.ShortcutGuide;
-            }
+            InitializeEnabledValue();
 
             _useLegacyPressWinKeyBehavior = Settings.Properties.UseLegacyPressWinKeyBehavior.Value;
             _pressTimeForGlobalWindowsShortcuts = Settings.Properties.PressTimeForGlobalWindowsShortcuts.Value;
@@ -76,6 +61,21 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                 case "dark": _themeIndex = 0; break;
                 case "light": _themeIndex = 1; break;
                 case "system": _themeIndex = 2; break;
+            }
+        }
+
+        private void InitializeEnabledValue()
+        {
+            _enabledGpoRuleConfiguration = GPOWrapper.GetConfiguredShortcutGuideEnabledValue();
+            if (_enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled)
+            {
+                // Get the enabled state from GPO.
+                _enabledStateIsGPOConfigured = true;
+                _isEnabled = _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled;
+            }
+            else
+            {
+                _isEnabled = GeneralSettingsConfig.Enabled.ShortcutGuide;
             }
         }
 
@@ -133,7 +133,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 if (Settings.Properties.OpenShortcutGuide != value)
                 {
-                    Settings.Properties.OpenShortcutGuide = value;
+                    Settings.Properties.OpenShortcutGuide = value ?? Settings.Properties.DefaultOpenShortcutGuide;
                     NotifyPropertyChanged();
                 }
             }
@@ -266,6 +266,12 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             SndModuleSettings<SndShortcutGuideSettings> ipcMessage = new SndModuleSettings<SndShortcutGuideSettings>(outsettings);
             SendConfigMSG(ipcMessage.ToJsonString());
             SettingsUtils.SaveSettings(Settings.ToJsonString(), ModuleName);
+        }
+
+        public void RefreshEnabledState()
+        {
+            InitializeEnabledValue();
+            OnPropertyChanged(nameof(IsEnabled));
         }
     }
 }

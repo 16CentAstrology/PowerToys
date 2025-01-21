@@ -1,31 +1,29 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\..\..\Version.props" />
+  <!-- Look at Directory.Build.props in root for common stuff as well -->
+  <Import Project="..\..\..\Common.Dotnet.CsWinRT.props" />
   
   <PropertyGroup>
-    <TargetFramework>net7.0-windows10.0.19041.0</TargetFramework>
-    <RuntimeIdentifiers>win10-x64;win10-arm64</RuntimeIdentifiers>
     <IsPackable>false</IsPackable>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    <OutputPath>$(SolutionDir)$(Platform)\$(Configuration)\modules\Hosts\Hosts.Tests\</OutputPath>
-    <IntermediateOutputPath>$(SolutionDir)$(Platform)\$(Configuration)\obj\$(AssemblyName)\</IntermediateOutputPath>
+    <OutputPath>$(SolutionDir)$(Platform)\$(Configuration)\tests\Hosts.Tests\</OutputPath>
     <RootNamespace>Hosts.Tests</RootNamespace>
     <AssemblyName>PowerToys.Hosts.Tests</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.0.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.2.0" />
-    <PackageReference Include="Moq" Version="4.16.1" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="MSTest.TestAdapter" Version="2.2.3" />
-    <PackageReference Include="MSTest.TestFramework" Version="2.2.3" />
-    <PackageReference Include="System.IO.Abstractions" Version="17.2.3" />
-    <PackageReference Include="System.IO.Abstractions.TestingHelpers" Version="17.2.3" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="MSTest" />
+    <PackageReference Include="System.IO.Abstractions" />
+    <PackageReference Include="System.IO.Abstractions.TestingHelpers" />
+    <PackageReference Include="System.Diagnostics.EventLog">
+      <!-- This package is a dependency of Microsoft.Extensions.Logging.EventLog, but we need to set it here so we can exclude the assets, so it doesn't conflict with the 8.0.1 dll coming from .NET SDK. -->
+      <ExcludeAssets>runtime</ExcludeAssets> <!-- Should already be present on .net sdk runtime, so we avoid the conflicting runtime version from nuget -->
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Hosts\Hosts.csproj" />
+    <ProjectReference Include="..\HostsUILib\HostsUILib.csproj" />
   </ItemGroup>
 
 </Project>

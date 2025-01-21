@@ -1,26 +1,56 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\..\..\Version.props" />
-  
+  <!-- Look at Directory.Build.props in root for common stuff as well -->
+  <Import Project="..\..\..\Common.Dotnet.CsWinRT.props" />
+  <Import Project="..\..\..\Common.SelfContained.props" />
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net7.0-windows10.0.19041.0</TargetFramework>
-    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>Hosts</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <RuntimeIdentifiers>win10-x64;win10-arm64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
     <EnablePreviewMsixTooling>true</EnablePreviewMsixTooling>
     <WindowsPackageType>None</WindowsPackageType>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
-    <OutputPath>$(SolutionDir)$(Platform)\$(Configuration)\modules\$(AssemblyName)</OutputPath>
-    <IntermediateOutputPath>$(SolutionDir)$(Platform)\$(Configuration)\obj\$(AssemblyName)</IntermediateOutputPath>
-    <RootNamespace>Hosts</RootNamespace>
+    <OutputPath>..\..\..\..\$(Platform)\$(Configuration)\WinUI3Apps</OutputPath>
     <AssemblyName>PowerToys.Hosts</AssemblyName>
     <DefineConstants>DISABLE_XAML_GENERATED_MAIN,TRACE</DefineConstants>
-    <ApplicationIcon>Assets/Hosts.ico</ApplicationIcon>
+    <ApplicationIcon>Assets/Hosts/Hosts.ico</ApplicationIcon>
+    <!-- MRT from windows app sdk will search for a pri file with the same name of the module before defaulting to resources.pri -->
+    <ProjectPriFileName>PowerToys.Hosts.pri</ProjectPriFileName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\Hosts\AppList.scale-100.png" />
+    <None Remove="Assets\Hosts\AppList.scale-125.png" />
+    <None Remove="Assets\Hosts\AppList.scale-150.png" />
+    <None Remove="Assets\Hosts\AppList.scale-200.png" />
+    <None Remove="Assets\Hosts\AppList.scale-400.png" />
+  </ItemGroup>
+
+  <Target Name="CopyPRIFileToOutputDir" AfterTargets="Build">
+    <Message Text="Executing CopyPRIFileToOutputDir task" Importance="High" />
+
+    <ItemGroup>
+      <PRIFile Include="$(OutDir)**\PowerToys.Hosts.pri" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(PRIFile)" DestinationFolder="$(OutDir)" />
+
+    <Message Text="Copied CopyPRIFileToOutputDir files" Importance="High" />
+  </Target>
+
+  <ItemGroup>
+    <Page Remove="HostsXAML\App.xaml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ApplicationDefinition Include="HostsXAML\App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\Hosts\Hosts.ico" />
+  </ItemGroup>
 
   <!-- See https://learn.microsoft.com/windows/apps/develop/platform/csharp-winrt/net-projection-from-cppwinrt-component for more info -->
   <PropertyGroup>
@@ -28,40 +58,39 @@
     <CsWinRTGeneratedFilesDir>$(OutDir)</CsWinRTGeneratedFilesDir>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
   </PropertyGroup>
-  <ItemGroup>
-    <None Remove="Assets\AppList.scale-100.png" />
-    <None Remove="Assets\AppList.scale-125.png" />
-    <None Remove="Assets\AppList.scale-150.png" />
-    <None Remove="Assets\AppList.scale-200.png" />
-    <None Remove="Assets\AppList.scale-400.png" />
-  </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.0.0" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.0.0" />
-    <PackageReference Include="CommunityToolkit.WinUI.UI.Controls" Version="7.1.2" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="7.0.0" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.1.5" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.1" />
-    <PackageReference Include="Microsoft.Xaml.Behaviors.WinUI.Managed" Version="2.0.9" />
-    <PackageReference Include="System.IO.Abstractions" Version="17.2.3" />
-    <PackageReference Include="WinUIEx" Version="1.8.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="WinUIEx" />
+    <!-- HACK: To make sure the version pulled in by Microsoft.Extensions.Hosting is current. -->
+    <PackageReference Include="System.Text.Json" />
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnablePreviewMsixTooling)'=='true'">
+  <!-- 
+    Defining the "Msix" ProjectCapability here allows the Single-project MSIX Packaging
+    Tools extension to be activated for this project even if the Windows App SDK Nuget
+    package has not yet been restored.
+  -->
+  <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
     <ProjectCapability Include="Msix" />
   </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference Include="..\..\..\common\GPOWrapper\GPOWrapper.vcxproj" />
     <ProjectReference Include="..\..\..\common\Common.UI\Common.UI.csproj" />
+    <ProjectReference Include="..\..\..\common\GPOWrapper\GPOWrapper.vcxproj" />
+    <ProjectReference Include="..\..\..\common\ManagedCommon\ManagedCommon.csproj" />
     <ProjectReference Include="..\..\..\settings-ui\Settings.UI.Library\Settings.UI.Library.csproj" />
+    <ProjectReference Include="..\..\..\common\interop\PowerToys.Interop.vcxproj" />
+    <ProjectReference Include="..\HostsUILib\HostsUILib.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Page Update="Views\MainPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-  </ItemGroup>
+  <!-- 
+    Defining the "HasPackageAndPublishMenuAddedByProject" property here allows the Solution 
+    Explorer "Package and Publish" context menu entry to be enabled for this project even if 
+    the Windows App SDK Nuget package has not yet been restored.
+  -->
+  <PropertyGroup Condition="'$(DisableHasPackageAndPublishMenuAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
+    <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
+  </PropertyGroup>
 </Project>

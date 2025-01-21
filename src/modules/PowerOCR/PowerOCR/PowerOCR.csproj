@@ -1,36 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\..\..\Version.props" />
+  <!-- Look at Directory.Build.props in root for common stuff as well -->
+  <Import Project="..\..\..\Common.Dotnet.CsWinRT.props" />
+  <Import Project="..\..\..\Common.SelfContained.props" />
 
   <PropertyGroup>
     <AssemblyTitle>PowerToys.PowerOCR</AssemblyTitle>
-    <OutputPath>$(SolutionDir)$(Platform)\$(Configuration)\modules\PowerOCR</OutputPath>
+    <OutputPath>..\..\..\..\$(Platform)\$(Configuration)</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <GenerateSatelliteAssembliesForCore>true</GenerateSatelliteAssembliesForCore>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-  </PropertyGroup>
-
-  <PropertyGroup>
     <ProjectGuid>{25C91A4E-BA4E-467A-85CD-8B62545BF674}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <ApplicationIcon>PowerOCRLogo.ico</ApplicationIcon>
     <PackageIcon>PowerOCRLogo.png</PackageIcon>
     <RootNamespace>PowerOCR</RootNamespace>
     <AssemblyName>PowerToys.PowerOCR</AssemblyName>
-    <TargetFramework>net7.0-windows10.0.19041.0</TargetFramework>
     <ProjectTypeGuids>{2150E333-8FDC-42A3-9474-1A3956D46DE8}</ProjectTypeGuids>
-    <IntermediateOutputPath>$(SolutionDir)$(Platform)\$(Configuration)\obj\$(AssemblyName)\</IntermediateOutputPath>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <Optimize>true</Optimize>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <Optimize>false</Optimize>
   </PropertyGroup>
 
   <ItemGroup>
@@ -39,14 +29,31 @@
   </ItemGroup>
 	
   <ItemGroup>
-    <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.0.0" />
-    <PackageReference Include="System.ComponentModel.Composition" Version="7.0.0" />
-    <PackageReference Include="System.Drawing.Common" Version="7.0.0" />
+    <PackageReference Include="System.ComponentModel.Composition" />
+    <PackageReference Include="System.Drawing.Common" />
+    <PackageReference Include="WPF-UI" />
   </ItemGroup>
 	
   <ItemGroup>
     <ProjectReference Include="..\..\..\common\GPOWrapperProjection\GPOWrapperProjection.csproj" />
+    <ProjectReference Include="..\..\..\common\interop\PowerToys.Interop.vcxproj" />
     <ProjectReference Include="..\..\..\common\Common.UI\Common.UI.csproj" />
     <ProjectReference Include="..\..\..\settings-ui\Settings.UI.Library\Settings.UI.Library.csproj" />
+  </ItemGroup>
+	
+  <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+	
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+		<Generator>PublicResXFileCodeGenerator</Generator>
+		<LastGenOutput>Resources.Designer.cs</LastGenOutput>
+		<SubType>Designer</SubType>
+	</EmbeddedResource>
   </ItemGroup>
 </Project>

@@ -7,6 +7,8 @@ using System.ComponentModel.Composition;
 using System.IO;
 using System.IO.Abstractions;
 using System.Threading;
+
+using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Utilities;
 
@@ -15,20 +17,21 @@ namespace PowerOCR.Settings
     [Export(typeof(IUserSettings))]
     public class UserSettings : IUserSettings
     {
-        private readonly ISettingsUtils _settingsUtils;
+        private readonly SettingsUtils _settingsUtils;
         private const string PowerOcrModuleName = "TextExtractor";
         private const string DefaultActivationShortcut = "Win + Shift + O";
         private const int MaxNumberOfRetry = 5;
         private const int SettingsReadOnChangeDelayInMs = 300;
 
         private readonly IFileSystemWatcher _watcher;
-        private readonly object _loadingSettingsLock = new object();
+        private readonly Lock _loadingSettingsLock = new();
 
         [ImportingConstructor]
         public UserSettings(Helpers.IThrottledActionInvoker throttledActionInvoker)
         {
             _settingsUtils = new SettingsUtils();
             ActivationShortcut = new SettingItem<string>(DefaultActivationShortcut);
+            PreferredLanguage = new SettingItem<string>(string.Empty);
 
             LoadSettingsFromJson();
 
@@ -37,6 +40,8 @@ namespace PowerOCR.Settings
         }
 
         public SettingItem<string> ActivationShortcut { get; private set; }
+
+        public SettingItem<string> PreferredLanguage { get; private set; }
 
         private void LoadSettingsFromJson()
         {
@@ -64,6 +69,7 @@ namespace PowerOCR.Settings
                             if (settings != null)
                             {
                                 ActivationShortcut.Value = settings.Properties.ActivationShortcut.ToString();
+                                PreferredLanguage.Value = settings.Properties.PreferredLanguage.ToString();
                             }
 
                             retry = false;
@@ -108,7 +114,7 @@ namespace PowerOCR.Settings
             // var telemetrySettings = new Telemetry.PowerOcrSettings(properties.VisibleColorFormats)
             // {
             //     ActivationShortcut = properties.ActivationShortcut.ToString(),
-            //     ActivationBehaviour = properties.ActivationAction.ToString(),
+            //     ActivationBehavior = properties.ActivationAction.ToString(),
             //     ColorFormatForClipboard = properties.CopiedColorRepresentation.ToString(),
             //     ShowColorName = properties.ShowColorName,
             // };

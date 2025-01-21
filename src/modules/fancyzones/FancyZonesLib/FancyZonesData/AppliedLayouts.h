@@ -36,7 +36,7 @@ class AppliedLayouts
 {
 public:
     using TAppliedLayoutsMap = std::unordered_map<FancyZonesDataTypes::WorkAreaId, LayoutData>;
-    
+
     static AppliedLayouts& instance();
 
     inline static std::wstring AppliedLayoutsFileName()
@@ -44,16 +44,23 @@ public:
         std::wstring saveFolderPath = PTSettingsHelper::get_module_save_folder_location(NonLocalizable::ModuleKey);
 #if defined(UNIT_TESTS)
         return saveFolderPath + L"\\test-applied-layouts.json";
-#endif
+#else
         return saveFolderPath + L"\\applied-layouts.json";
+#endif
     }
+
+#if defined(UNIT_TESTS)
+    inline void SetAppliedLayouts(TAppliedLayoutsMap layouts)
+    {
+        m_layouts = layouts;
+    }
+#endif
 
     void LoadData();
     void SaveData();
     void AdjustWorkAreaIds(const std::vector<FancyZonesDataTypes::MonitorId>& ids);
 
-    void SyncVirtualDesktops();
-    void RemoveDeletedVirtualDesktops(const std::vector<GUID>& activeDesktops);
+    void SyncVirtualDesktops(const GUID& currentVirtualDesktop, const GUID& lastUsedVirtualDesktop, std::optional<std::vector<GUID>> desktops);
 
     std::optional<LayoutData> GetDeviceLayout(const FancyZonesDataTypes::WorkAreaId& id) const noexcept;
     const TAppliedLayoutsMap& GetAppliedLayoutMap() const noexcept;

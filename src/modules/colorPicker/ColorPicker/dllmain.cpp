@@ -19,6 +19,7 @@ BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lp
     {
     case DLL_PROCESS_ATTACH:
         Trace::RegisterProvider();
+        [[fallthrough]];
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
         break;
@@ -65,6 +66,8 @@ private:
 
     // Handle to event used to invoke ColorPicker
     HANDLE m_hInvokeEvent;
+
+    HANDLE m_hAppTerminateEvent;
 
     void parse_hotkey(PowerToysSettings::PowerToyValues& settings)
     {
@@ -116,7 +119,7 @@ private:
 
         SHELLEXECUTEINFOW sei{ sizeof(sei) };
         sei.fMask = { SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI };
-        sei.lpFile = L"modules\\ColorPicker\\PowerToys.ColorPickerUI.exe";
+        sei.lpFile = L"PowerToys.ColorPickerUI.exe";
         sei.nShow = SW_SHOWNORMAL;
         sei.lpParameters = executable_args.data();
         if (ShellExecuteExW(&sei))
@@ -157,6 +160,7 @@ public:
         LoggerHelpers::init_logger(app_key, L"ModuleInterface", "ColorPicker");
         send_telemetry_event = CreateDefaultEvent(CommonSharedConstants::COLOR_PICKER_SEND_SETTINGS_TELEMETRY_EVENT);
         m_hInvokeEvent = CreateDefaultEvent(CommonSharedConstants::SHOW_COLOR_PICKER_SHARED_EVENT);
+        m_hAppTerminateEvent = CreateDefaultEvent(CommonSharedConstants::TERMINATE_COLOR_PICKER_SHARED_EVENT);
         init_settings();
     }
 
@@ -238,6 +242,7 @@ public:
         ResetEvent(m_hInvokeEvent);
         launch_process();
         m_enabled = true;
+        Trace::EnableColorPicker(true);
     };
 
     virtual void disable()
@@ -247,10 +252,15 @@ public:
         {
             ResetEvent(send_telemetry_event);
             ResetEvent(m_hInvokeEvent);
+
+            SetEvent(m_hAppTerminateEvent);
+            WaitForSingleObject(m_hProcess, 1500);
+
             TerminateProcess(m_hProcess, 1);
         }
 
         m_enabled = false;
+        Trace::EnableColorPicker(false);
     }
 
     virtual bool on_hotkey(size_t /*hotkeyId*/) override

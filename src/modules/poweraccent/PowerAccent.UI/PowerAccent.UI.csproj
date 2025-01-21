@@ -1,19 +1,20 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-	<Import Project="..\..\..\Version.props" />
+  <!-- Look at Directory.Build.props in root for common stuff as well -->
+  <Import Project="..\..\..\Common.Dotnet.CsWinRT.props" />
+  <Import Project="..\..\..\Common.SelfContained.props" />
+	
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
-		<TargetFramework>net7.0-windows10.0.19041.0</TargetFramework>
-		<RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
 		<Nullable>disable</Nullable>
 		<UseWPF>true</UseWPF>
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 		<ApplicationIcon>icon.ico</ApplicationIcon>
 		<AssemblyName>PowerToys.PowerAccent</AssemblyName>
 		<XamlDebuggingInformation>True</XamlDebuggingInformation>
-    <StartupObject>PowerAccent.UI.Program</StartupObject>
-    <OutputPath>$(SolutionDir)$(Platform)\$(Configuration)\modules\PowerAccent</OutputPath>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+		<StartupObject>PowerAccent.UI.Program</StartupObject>
+		<OutputPath>..\..\..\..\$(Platform)\$(Configuration)</OutputPath>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -23,12 +24,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.0.0" />
-		<PackageReference Include="ModernWpfUI" Version="0.9.4" />
+		<PackageReference Include="WPF-UI" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\..\common\Common.UI\Common.UI.csproj" />
+		<ProjectReference Include="..\..\..\common\interop\PowerToys.Interop.vcxproj" />
 		<ProjectReference Include="..\PowerAccent.Core\PowerAccent.Core.csproj" />
 		<ProjectReference Include="..\PowerAccentKeyboardService\PowerAccentKeyboardService.vcxproj" />
 	</ItemGroup>

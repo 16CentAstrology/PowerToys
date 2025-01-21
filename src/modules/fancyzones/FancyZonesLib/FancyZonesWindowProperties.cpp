@@ -6,6 +6,8 @@
 #include <common/logger/logger.h>
 #include <common/utils/winapi_error.h>
 
+#include <modules/Workspaces/WindowProperties/WorkspacesWindowPropertyUtils.h>
+
 // Zoned window properties are not localized.
 namespace ZonedWindowProperties
 {
@@ -15,7 +17,7 @@ namespace ZonedWindowProperties
     const wchar_t PropertySortKeyWithinZone[] = L"FancyZones_TabSortKeyWithinZone";
 }
 
-void FancyZonesWindowProperties::StampZoneIndexProperty(HWND window, const ZoneIndexSet& zoneSet)
+bool FancyZonesWindowProperties::StampZoneIndexProperty(HWND window, const ZoneIndexSet& zoneSet)
 {
     RemoveZoneIndexProperty(window);
     ZoneIndexSetBitmask bitmask = ZoneIndexSetBitmask::FromIndexSet(zoneSet);
@@ -33,6 +35,7 @@ void FancyZonesWindowProperties::StampZoneIndexProperty(HWND window, const ZoneI
         if (!SetProp(window, ZonedWindowProperties::PropertyMultipleZone64ID, rawData))
         {
             Logger::error(L"Failed to stamp window {}", get_last_error_or_default(GetLastError()));
+            return false;
         }
     }
 
@@ -49,8 +52,11 @@ void FancyZonesWindowProperties::StampZoneIndexProperty(HWND window, const ZoneI
         if (!SetProp(window, ZonedWindowProperties::PropertyMultipleZone128ID, rawData))
         {
             Logger::error(L"Failed to stamp window {}", get_last_error_or_default(GetLastError()));
+            return false;
         }
     }
+
+    return true;
 }
 
 void FancyZonesWindowProperties::RemoveZoneIndexProperty(HWND window)
@@ -85,7 +91,7 @@ ZoneIndexSet FancyZonesWindowProperties::RetrieveZoneIndexProperty(HWND window)
 
 void FancyZonesWindowProperties::StampMovedOnOpeningProperty(HWND window)
 {
-    ::SetPropW(window, ZonedWindowProperties::PropertyMovedOnOpening, (HANDLE)1);
+    ::SetPropW(window, ZonedWindowProperties::PropertyMovedOnOpening, reinterpret_cast<HANDLE>(1));
 }
 
 bool FancyZonesWindowProperties::RetrieveMovedOnOpeningProperty(HWND window)
@@ -117,4 +123,10 @@ void FancyZonesWindowProperties::SetTabSortKeyWithinZone(HWND window, std::optio
         auto rawTabSortKeyWithinZone = reinterpret_cast<HANDLE>(tabSortKeyWithinZone.value() + 1);
         ::SetPropW(window, ZonedWindowProperties::PropertySortKeyWithinZone, rawTabSortKeyWithinZone);
     }
+}
+
+bool FancyZonesWindowProperties::IsLaunchedByWorkspaces(HWND window)
+{
+    HANDLE handle = ::GetProp(window, WorkspacesWindowProperties::Properties::LaunchedByWorkspacesID);
+    return handle != nullptr;
 }

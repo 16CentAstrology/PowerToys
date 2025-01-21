@@ -5,12 +5,15 @@
 #include <common/logger/logger.h>
 #include <common/logger/logger_settings.h>
 #include <common/utils/logger_helper.h>
+#include <common/utils/package.h>
+#include <common/utils/process_path.h>
 #include <optional>
 
-#include "Constants.h"
+#include "FileLocksmithLib/Constants.h"
+#include "FileLocksmithLib/Settings.h"
+#include "FileLocksmithLib/Trace.h"
+
 #include "dllmain.h"
-#include "Settings.h"
-#include "Trace.h"
 #include "Generated Files/resource.h"
 
 class FileLocksmithModule : public PowertoyModuleIface
@@ -62,7 +65,8 @@ public:
             PowerToysSettings::PowerToyValues values =
                 PowerToysSettings::PowerToyValues::from_json_string(config, get_key());
 
-            // Currently, there are no settings, so we don't do anything.
+            toggle_extended_only(values.get_bool_value(L"bool_show_extended_menu").value());
+            save_settings();
         }
         catch (std::exception& e)
         {
@@ -73,20 +77,42 @@ public:
     virtual void enable() override
     {
         Logger::info(L"File Locksmith enabled");
+
+        if (package::IsWin11OrGreater())
+        {
+            std::wstring path = get_module_folderpath(globals::instance);
+            std::wstring packageUri = path + L"\\FileLocksmithContextMenuPackage.msix";
+
+            if (!package::IsPackageRegistered(constants::nonlocalizable::ContextMenuPackageName))
+            {
+                package::RegisterSparsePackage(path, packageUri);
+            }
+        }
+
         m_enabled = true;
-        save_settings();
     }
 
     virtual void disable() override
     {
         Logger::info(L"File Locksmith disabled");
         m_enabled = false;
-        save_settings();
     }
 
     virtual bool is_enabled() override
     {
         return m_enabled;
+    }
+
+    virtual void toggle_extended_only(bool extended_only)
+    {
+        Logger::info(L"File Locksmith toggle extended only");
+        m_extended_only = extended_only;
+        save_settings();
+    }
+
+    virtual bool is_extended_only()
+    {
+        return m_extended_only;
     }
 
     virtual void destroy() override
@@ -95,18 +121,22 @@ public:
     }
 
 private:
-    bool m_enabled;
+    bool m_enabled = false;
+    bool m_extended_only;
 
     void init_settings()
     {
         m_enabled = FileLocksmithSettingsInstance().GetEnabled();
+        m_extended_only = FileLocksmithSettingsInstance().GetShowInExtendedContextMenu();
         Trace::EnableFileLocksmith(m_enabled);
     }
 
     void save_settings()
     {
         auto& settings = FileLocksmithSettingsInstance();
-        settings.SetEnabled(m_enabled);
+        m_enabled = FileLocksmithSettingsInstance().GetEnabled();
+        settings.SetExtendedContextMenuOnly(m_extended_only);
+
         settings.Save();
         Trace::EnableFileLocksmith(m_enabled);
     }

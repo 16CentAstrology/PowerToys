@@ -11,14 +11,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
+
 using global::PowerToys.GPOWrapper;
+using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Helpers;
 using Microsoft.PowerToys.Settings.UI.Library.Interfaces;
-using Microsoft.PowerToys.Settings.UI.Library.Utilities;
 using Microsoft.PowerToys.Settings.UI.Library.ViewModels.Commands;
 using Microsoft.PowerToys.Settings.Utilities;
-using Windows.ApplicationModel.Resources;
 
 namespace Microsoft.PowerToys.Settings.UI.ViewModels
 {
@@ -31,7 +31,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         private const string PowerToyName = KeyboardManagerSettings.ModuleName;
         private const string JsonFileType = ".json";
 
-        private const string KeyboardManagerEditorPath = "modules\\KeyboardManager\\KeyboardManagerEditor\\PowerToys.KeyboardManagerEditor.exe";
+        private const string KeyboardManagerEditorPath = "KeyboardManagerEditor\\PowerToys.KeyboardManagerEditor.exe";
         private Process editor;
 
         private enum KeyboardManagerEditorType
@@ -56,26 +56,13 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
 
         public KeyboardManagerViewModel(ISettingsUtils settingsUtils, ISettingsRepository<GeneralSettings> settingsRepository, Func<string, int> ipcMSGCallBackFunc, Func<List<KeysDataModel>, int> filterRemapKeysList)
         {
-            if (settingsRepository == null)
-            {
-                throw new ArgumentNullException(nameof(settingsRepository));
-            }
+            ArgumentNullException.ThrowIfNull(settingsRepository);
 
             GeneralSettingsConfig = settingsRepository.SettingsConfig;
 
-            _enabledGpoRuleConfiguration = GPOWrapper.GetConfiguredKeyboardManagerEnabledValue();
-            if (_enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled)
-            {
-                // Get the enabled state from GPO.
-                _enabledStateIsGPOConfigured = true;
-                _isEnabled = _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled;
-            }
-            else
-            {
-                _isEnabled = GeneralSettingsConfig.Enabled.KeyboardManager;
-            }
+            InitializeEnabledValue();
 
-            // set the callback functions value to hangle outgoing IPC message.
+            // set the callback functions value to handle outgoing IPC message.
             SendConfigMSG = ipcMSGCallBackFunc;
             FilterRemapKeysList = filterRemapKeysList;
 
@@ -108,6 +95,21 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 Settings = new KeyboardManagerSettings();
                 _settingsUtils.SaveSettings(Settings.ToJsonString(), PowerToyName);
+            }
+        }
+
+        private void InitializeEnabledValue()
+        {
+            _enabledGpoRuleConfiguration = GPOWrapper.GetConfiguredKeyboardManagerEnabledValue();
+            if (_enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled)
+            {
+                // Get the enabled state from GPO.
+                _enabledStateIsGPOConfigured = true;
+                _isEnabled = _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled;
+            }
+            else
+            {
+                _isEnabled = GeneralSettingsConfig.Enabled.KeyboardManager;
             }
         }
 
@@ -157,7 +159,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 if (_profile != null)
                 {
-                    return _profile.RemapKeys.InProcessRemapKeys;
+                    return _profile.RemapKeys.InProcessRemapKeys.Concat(_profile.RemapKeysToText.InProcessRemapKeys).ToList();
                 }
                 else
                 {
@@ -171,7 +173,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             string allAppsDescription = "All Apps";
             try
             {
-                ResourceLoader resourceLoader = ResourceLoader.GetForViewIndependentUse();
+                var resourceLoader = Helpers.ResourceLoaderInstance.ResourceLoader;
                 allAppsDescription = resourceLoader.GetString("KeyboardManager_All_Apps_Description");
             }
             catch (Exception ex)
@@ -189,11 +191,11 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             }
             else if (appSpecificShortcutList == null)
             {
-                return globalShortcutList.ConvertAll(x => new AppSpecificKeysDataModel { OriginalKeys = x.OriginalKeys, NewRemapKeys = x.NewRemapKeys, TargetApp = allAppsDescription }).ToList();
+                return globalShortcutList.ConvertAll(x => new AppSpecificKeysDataModel { OriginalKeys = x.OriginalKeys, NewRemapKeys = x.NewRemapKeys, NewRemapString = x.NewRemapString, RunProgramFilePath = x.RunProgramFilePath, OperationType = x.OperationType, OpenUri = x.OpenUri, SecondKeyOfChord = x.SecondKeyOfChord, RunProgramArgs = x.RunProgramArgs, TargetApp = allAppsDescription }).ToList();
             }
             else
             {
-                return globalShortcutList.ConvertAll(x => new AppSpecificKeysDataModel { OriginalKeys = x.OriginalKeys, NewRemapKeys = x.NewRemapKeys, TargetApp = allAppsDescription }).Concat(appSpecificShortcutList).ToList();
+                return globalShortcutList.ConvertAll(x => new AppSpecificKeysDataModel { OriginalKeys = x.OriginalKeys, NewRemapKeys = x.NewRemapKeys, NewRemapString = x.NewRemapString, RunProgramFilePath = x.RunProgramFilePath, OperationType = x.OperationType, OpenUri = x.OpenUri, SecondKeyOfChord = x.SecondKeyOfChord, RunProgramArgs = x.RunProgramArgs, TargetApp = allAppsDescription }).Concat(appSpecificShortcutList).ToList();
             }
         }
 
@@ -203,7 +205,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             {
                 if (_profile != null)
                 {
-                    return CombineShortcutLists(_profile.RemapShortcuts.GlobalRemapShortcuts, _profile.RemapShortcuts.AppSpecificRemapShortcuts);
+                    return CombineShortcutLists(_profile.RemapShortcuts.GlobalRemapShortcuts, _profile.RemapShortcuts.AppSpecificRemapShortcuts).Concat(CombineShortcutLists(_profile.RemapShortcutsToText.GlobalRemapShortcuts, _profile.RemapShortcutsToText.AppSpecificRemapShortcuts)).ToList();
                 }
                 else
                 {
@@ -216,12 +218,12 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
 
         public ICommand EditShortcutCommand => _editShortcutCommand ?? (_editShortcutCommand = new RelayCommand(OnEditShortcut));
 
-        private void OnRemapKeyboard()
+        public void OnRemapKeyboard()
         {
             OpenEditor((int)KeyboardManagerEditorType.KeyEditor);
         }
 
-        private void OnEditShortcut()
+        public void OnEditShortcut()
         {
             OpenEditor((int)KeyboardManagerEditorType.ShortcutEditor);
         }
@@ -277,6 +279,12 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             OnPropertyChanged(nameof(RemapShortcuts));
         }
 
+        public void RefreshEnabledState()
+        {
+            InitializeEnabledValue();
+            OnPropertyChanged(nameof(Enabled));
+        }
+
         public bool LoadProfile()
         {
             var success = true;
@@ -326,6 +334,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                 if (readSuccessfully)
                 {
                     FilterRemapKeysList(_profile?.RemapKeys?.InProcessRemapKeys);
+                    FilterRemapKeysList(_profile?.RemapKeysToText?.InProcessRemapKeys);
                 }
                 else
                 {

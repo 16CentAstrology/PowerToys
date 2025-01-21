@@ -247,7 +247,7 @@ namespace PowerToysSettings
     bool Settings::serialize_to_buffer(wchar_t* buffer, int* buffer_size)
     {
         auto result = m_json.Stringify();
-        const int result_len = (int)result.size() + 1;
+        const int result_len = static_cast<int>(result.size() + 1);
 
         if (buffer == nullptr || *buffer_size < result_len)
         {
@@ -329,6 +329,15 @@ namespace PowerToysSettings
             return std::nullopt;
         }
         return static_cast<int>(m_json.GetNamedObject(L"properties").GetNamedObject(property_name).GetNamedNumber(L"value"));
+    }
+
+    std::optional<unsigned int> PowerToyValues::get_uint_value(std::wstring_view property_name) const
+    {
+        if (!has_property(m_json, property_name, json::JsonValueType::Number))
+        {
+            return std::nullopt;
+        }
+        return static_cast<unsigned int>(m_json.GetNamedObject(L"properties").GetNamedObject(property_name).GetNamedNumber(L"value"));
     }
 
     std::optional<std::wstring> PowerToyValues::get_string_value(std::wstring_view property_name) const

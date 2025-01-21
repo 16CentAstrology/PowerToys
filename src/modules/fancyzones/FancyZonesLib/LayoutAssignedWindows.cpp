@@ -6,37 +6,10 @@
 #include <FancyZonesLib/VirtualDesktop.h>
 #include <FancyZonesLib/WindowUtils.h>
 
-LayoutAssignedWindows::LayoutAssignedWindows()
-{
-    m_extendData = std::make_unique<ExtendWindowModeData>();
-}
-
 void LayoutAssignedWindows::Assign(HWND window, const ZoneIndexSet& zones)
 {
     Dismiss(window);
-
-    // clear info about extension 
-    std::erase_if(m_extendData->windowInitialIndexSet, [window](const auto& item) { return item.first == window; });
-    std::erase_if(m_extendData->windowFinalIndex, [window](const auto& item) { return item.first == window; });
-
-    for (const auto& index : zones)
-    {
-        m_windowIndexSet[window].push_back(index);
-    }
-
-    if (FancyZonesSettings::settings().disableRoundCorners)
-    {
-        FancyZonesWindowUtils::DisableRoundCorners(window);
-    }
-
-    auto tabSortKeyWithinZone = FancyZonesWindowProperties::GetTabSortKeyWithinZone(window);
-    InsertWindowIntoZone(window, tabSortKeyWithinZone, zones);
-}
-
-void LayoutAssignedWindows::Extend(HWND window, const ZoneIndexSet& zones)
-{
-    Dismiss(window);
-
+    
     for (const auto& index : zones)
     {
         m_windowIndexSet[window].push_back(index);
@@ -67,6 +40,11 @@ void LayoutAssignedWindows::Dismiss(HWND window)
     }
     
     FancyZonesWindowProperties::SetTabSortKeyWithinZone(window, std::nullopt);
+}
+
+std::map<HWND, ZoneIndexSet> LayoutAssignedWindows::SnappedWindows() const noexcept
+{
+    return m_windowIndexSet;
 }
 
 ZoneIndexSet LayoutAssignedWindows::GetZoneIndexSetFromWindow(HWND window) const noexcept
@@ -126,11 +104,6 @@ void LayoutAssignedWindows::CycleWindows(HWND window, bool reverse)
 
         break;
     }
-}
-
-const std::unique_ptr<LayoutAssignedWindows::ExtendWindowModeData>& LayoutAssignedWindows::ExtendWindowData()
-{
-    return m_extendData;
 }
 
 void LayoutAssignedWindows::InsertWindowIntoZone(HWND window, std::optional<size_t> tabSortKeyWithinZone, const ZoneIndexSet& indexSet)
